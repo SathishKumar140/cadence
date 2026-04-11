@@ -10,10 +10,13 @@ export async function GET(request: Request) {
     const supabase = createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      // Use NEXT_PUBLIC_SITE_URL if available (for production), fallback to origin
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || origin
+      return NextResponse.redirect(`${siteUrl}${next}`)
     }
   }
 
   // return the user to an error page with instructions
-  return NextResponse.redirect(`${origin}/auth/auth-error`)
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || origin
+  return NextResponse.redirect(`${siteUrl}/auth/auth-error`)
 }
