@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import func
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import uuid
 import httpx
 from pydantic import BaseModel
@@ -53,8 +53,14 @@ def health_check():
 
 
 from agents import run_full_agent
+from chat_agent import run_chat_agent_stream
+from integrations import EventDiscoveryService
 
 # Pydantic Models
+class ChatRequest(BaseModel):
+    message: str
+    user_id: str
+    access_token: str = ""
 class SyncRequest(BaseModel):
     access_token: str
     user_id: str
@@ -63,6 +69,7 @@ class SyncRequest(BaseModel):
 class PreferenceUpdate(BaseModel):
     goals: Dict[str, Any]
     interests: List[str] = []
+    location: Optional[Dict[str, Any]] = None
 
 class AddEventRequest(BaseModel):
     user_id: str
@@ -126,7 +133,6 @@ async def get_dashboard_data(user_id: str, db: Session = Depends(get_db)):
             now = datetime.now(cached.created_at.tzinfo) if cached.created_at.tzinfo else datetime.now()
             age = now - cached.created_at
             if age < timedelta(hours=24):
-                print(f"DEBUG: Returning cached insights for user {user_id}")
                 plan = cached.weekly_plan
                 
                 # Self-healing: Ensure all items have IDs for targeted management
@@ -167,7 +173,8 @@ async def get_dashboard_data(user_id: str, db: Session = Depends(get_db)):
         api_key = user.ai_api_key if user and user.ai_api_key else None
         
         # 3. Run Agent
-        data = run_full_agent(user_id, db, api_key=api_key)
+        provider = user.ai_provider if user and user.ai_provider else "openai"
+        data = await run_full_agent(user_id, db, provider=provider, api_key=api_key)
         
         # 4. Upsert Cache
         if not cached:
@@ -239,7 +246,6 @@ async def suggest_alternate(req: AlternateRequest, db: Session = Depends(get_db)
         
         if not item_to_replace:
             # Final fallback: matching by title/day/time if ID is still mismatched
-            print(f"DEBUG: ID Match failed for {req.item_id}, trying title/time fallback")
             item_to_replace = next((i for i in plan if 
                 i.get("title") == req.title and 
                 i.get("day") == req.day and 
@@ -255,7 +261,8 @@ async def suggest_alternate(req: AlternateRequest, db: Session = Depends(get_db)
             current_plan=plan,
             item_to_replace=item_to_replace,
             goals=pref.goals if pref else {},
-            api_key=user.ai_api_key if user else None
+            provider=user.ai_provider if user and user.ai_provider else "openai",
+            api_key=user.ai_api_key if user and user.ai_api_key else None
         )
         
         # 4. Update Cache
@@ -355,27 +362,40 @@ def get_preferences(user_id: str, db: Session = Depends(get_db)):
 
 @app.post("/api/user/preferences")
 def update_preferences(user_id: str, req: PreferenceUpdate, db: Session = Depends(get_db)):
-    # Self-healing: Ensure user exists in 'users' table first to avoid FK violation
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        print(f"DEBUG: Creating skeleton user {user_id} for preferences")
-        user = models.User(id=user_id, email=f"{user_id}@placeholder.com")
-        db.add(user)
-        db.commit()
+    try:
+        # 1. Ensure user exists (Self-healing for onboarding)
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        if not user:
+            print(f"DEBUG: Initializing new user account: {user_id}")
+            user = models.User(id=user_id, email=f"{user_id}@cadence-user.com")
+            db.add(user)
+            db.flush() # Ensure ID is available for FKs
 
-    pref = db.query(models.UserPreference).filter(models.UserPreference.user_id == user_id).first()
-    if not pref:
-        pref = models.UserPreference(id=str(uuid.uuid4()), user_id=user_id, goals=req.goals, interests=req.interests)
-        db.add(pref)
-    else:
-        pref.goals = req.goals
-    pref.interests = req.interests
-    db.commit()
-    
-    # Invalidate dashboard cache on preference update
-    db.query(models.DashboardCache).filter(models.DashboardCache.user_id == user_id).delete()
-    db.commit()
-    return {"status": "success"}
+        # 2. Update or Create Preferences
+        pref = db.query(models.UserPreference).filter(models.UserPreference.user_id == user_id).first()
+        if not pref:
+            pref = models.UserPreference(
+                id=str(uuid.uuid4()), 
+                user_id=user_id, 
+                goals=req.goals, 
+                interests=req.interests,
+                location=req.location
+            )
+            db.add(pref)
+        else:
+            pref.goals = req.goals
+            pref.interests = req.interests
+            pref.location = req.location
+        
+        # 3. Invalidate dependent caches
+        db.query(models.DashboardCache).filter(models.DashboardCache.user_id == user_id).delete()
+        
+        db.commit()
+        return {"status": "success"}
+    except Exception as e:
+        db.rollback()
+        print(f"ERROR: Preference update failed for {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Persistence error")
 
 @app.get("/api/interests/suggest")
 async def suggest_interests(q: str = ""):
@@ -524,6 +544,58 @@ async def sync_calendar(req: SyncRequest, db: Session = Depends(get_db)):
             return {"status": "success", "synced": synced_count}
         except httpx.RequestError as e:
             raise HTTPException(status_code=502, detail=f"Error connecting to Google Calendar: {str(e)}")
+
+@app.post("/api/agent/chat")
+async def agent_chat_endpoint(req: ChatRequest, db: Session = Depends(get_db)):
+    from fastapi.responses import StreamingResponse
+    import json
+    
+    # Fetch history
+    history_objs = db.query(models.AgentChatMessage).filter(models.AgentChatMessage.user_id == req.user_id).order_by(models.AgentChatMessage.created_at.desc()).limit(10).all()
+    history = [{"role": m.role, "content": m.content} for m in reversed(history_objs)]
+    
+    # Save user message
+    user_msg = models.AgentChatMessage(id=str(uuid.uuid4()), user_id=req.user_id, role="user", content=req.message)
+    db.add(user_msg)
+    db.commit()
+
+    # Fetch user for settings
+    user = db.query(models.User).filter(models.User.id == req.user_id).first()
+    provider = user.ai_provider if user and user.ai_provider else "openai"
+    api_key = user.ai_api_key if user and user.ai_api_key else None
+
+    async def event_generator():
+        combined_response = ""
+        async for event in run_chat_agent_stream(req.user_id, req.message, db, history, provider, api_key):
+            if event["type"] == "response":
+                combined_response += event["content"]
+            yield f"data: {json.dumps(event)}\n\n"
+        
+        # Save assistant response
+        if combined_response:
+            asst_msg = models.AgentChatMessage(id=str(uuid.uuid4()), user_id=req.user_id, role="assistant", content=combined_response)
+            db.add(asst_msg)
+            db.commit()
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.get("/api/agent/history")
+async def get_agent_history(user_id: str, db: Session = Depends(get_db)):
+    msgs = db.query(models.AgentChatMessage).filter(models.AgentChatMessage.user_id == user_id).order_by(models.AgentChatMessage.created_at.asc()).limit(50).all()
+    return msgs
+
+@app.get("/api/events/discover")
+async def discover_events(user_id: str, db: Session = Depends(get_db)):
+    # Fetch interests from preferences
+    pref = db.query(models.UserPreference).filter(models.UserPreference.user_id == user_id).first()
+    interests = pref.interests if pref else ["AI", "Fitness", "Coding"]
+    
+    # Fetch location if available (placeholder city)
+    location = "San Francisco" 
+    
+    service = EventDiscoveryService()
+    events = await service.discover(interests, location)
+    return events
 
 @app.get("/")
 def read_root():

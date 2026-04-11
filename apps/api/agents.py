@@ -5,13 +5,28 @@ from typing import List, Dict, Any, TypedDict
 from datetime import datetime
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
-from langgraph.graph import StateGraph, END
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
+from langgraph.graph import StateGraph, END, MessageGraph
 from sqlalchemy.orm import Session
 import models
 
 load_dotenv()
-print(f"DEBUG: OPENAI_API_KEY detected: {'Yes' if os.getenv('OPENAI_API_KEY') else 'No'}")
+
+def get_model(provider: str = "openai", api_key: str = None, model_name: str = None):
+    """Factory to get the appropriate LLM."""
+    if provider == "google":
+        return ChatGoogleGenerativeAI(
+            model=model_name or "gemini-1.5-pro",
+            google_api_key=api_key or os.getenv("GOOGLE_API_KEY"),
+            temperature=0
+        )
+    else:
+        return ChatOpenAI(
+            model=model_name or "gpt-4o",
+            api_key=api_key or os.getenv("OPENAI_API_KEY"),
+            temperature=0
+        )
 
 # Define the state for our graph
 class AgentState(TypedDict):
@@ -31,7 +46,6 @@ class AgentState(TypedDict):
 def fetch_data_node(state: AgentState):
     user_id = state["user_id"]
     db = state["db"]
-    print(f"DEBUG: Node 1: Fetching data for user {user_id}")
     
     # Fetch events
     db_events = db.query(models.CalendarEvent).filter(models.CalendarEvent.user_id == user_id).all()
@@ -56,7 +70,6 @@ def fetch_data_node(state: AgentState):
 def fetch_preferences_node(state: AgentState):
     user_id = state["user_id"]
     db = state["db"]
-    print(f"DEBUG: Node 2: Fetching preferences for user {user_id}")
     
     pref = db.query(models.UserPreference).filter(models.UserPreference.user_id == user_id).first()
     
@@ -75,9 +88,8 @@ def fetch_preferences_node(state: AgentState):
 # Node 3: Analyze Patterns
 def analyze_patterns_node(state: AgentState):
     events = state["events"]
-    print(f"DEBUG: Node 3: Analyzing patterns for {len(events)} events")
     
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    llm = get_model(state.get("provider"), state.get("api_key"))
     
     event_summary = "\n".join([f"- {e['title']} ({e['start_time']} to {e['end_time']})" for e in events])
     
@@ -99,44 +111,36 @@ def analyze_patterns_node(state: AgentState):
     
     return {"analysis": response.content}
 
+from integrations import EventDiscoveryService
+
 # Node 3.5: Discovery Agent
-def discovery_agent_node(state: AgentState):
+async def discovery_agent_node(state: AgentState):
     interests = state["interests"]
-    timezone = state["timezone"]
-    print(f"DEBUG: Node 3.5: Discovering events for interests: {interests}")
+    user_id = state["user_id"]
+    db = state["db"]
     
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=state.get("api_key")) # Slightly higher temp for "discovery"
-    
+    # Try fetching real events first
+    try:
+        service = EventDiscoveryService()
+        discovered = await service.discover(interests, "San Francisco") # City should be dynamic from profile
+        if discovered:
+            return {"discovered_events": discovered[:4]}
+    except Exception as e:
+        print(f"Discovery Service Error: {e}")
+
+    # Fallback to AI generation
+    llm = ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=state.get("api_key"))
     prompt = f"""
     You are an AI Scout. Search for highly relevant, specific upcoming events for these interests: {interests}.
-    Current user timezone: {timezone}.
-    
-    Tasks:
-    1. Generate 2 unique, realistic events that would actually happen this upcoming week.
-    2. Include specific details like physical location (e.g., 'National Library' or 'Virtual Meetup') and a plausible source link.
-    3. Categorize them by how well they fit the user's weekly goals.
-    
-    Return a JSON list:
-    [
-      {{
-        "title": "Specific Event Name",
-        "description": "Engaging 1-2 sentence description.",
-        "day": "Day of week",
-        "time": "HH:MM-HH:MM",
-        "source": "https://example.com/event",
-        "category": "learning/fitness/social",
-        "location": "Physical or Virtual address"
-      }}
-    ]
-    Return ONLY JSON.
+    Current user timezone: {state['timezone']}.
+    Return ONLY JSON list of 2 events.
     """
+    response = await llm.ainvoke([SystemMessage(content="You are a professional event discovery specialist."), HumanMessage(content=prompt)])
     
-    response = llm.invoke([SystemMessage(content="You are a professional event discovery specialist."), HumanMessage(content=prompt)])
-    
-    import json
     try:
         content = response.content.replace("```json", "").replace("```", "").strip()
         discovered = json.loads(content)
+        for d in discovered: d["source"] = "ai_suggested"
     except:
         discovered = []
         
@@ -148,9 +152,8 @@ def planner_agent_node(state: AgentState):
     preferences = state["preferences"]
     timezone = state["timezone"]
     discovered = state.get("discovered_events", [])
-    print(f"DEBUG: Node 4: Generating optimized weekly plan with {len(discovered)} discoveries")
     
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    llm = get_model(state.get("provider"), state.get("api_key"))
     
     prompt = f"""
     Suggest a high-performance weekly plan for the upcoming week.
@@ -191,9 +194,9 @@ def planner_agent_node(state: AgentState):
         
     return {"weekly_plan": weekly_plan}
 
-def run_alternate_agent(current_plan: List[Dict], item_to_replace: Dict, goals: Dict, api_key: str = None):
+def run_alternate_agent(current_plan: List[Dict], item_to_replace: Dict, goals: Dict, provider: str = "openai", api_key: str = None):
     """Specialized function to rethink a single slot."""
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=api_key)
+    llm = get_model(provider, api_key)
     
     prompt = f"""
     You are an AI Optimization Specialist. The user wants to REPLACE a specific item in their weekly plan.
@@ -231,9 +234,8 @@ def run_alternate_agent(current_plan: List[Dict], item_to_replace: Dict, goals: 
 # Node 5: Generate Insights
 def generate_insights_node(state: AgentState):
     analysis = state["analysis"]
-    print("DEBUG: Node 5: Generating structured insights")
     
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    llm = get_model(state.get("provider"), state.get("api_key"))
     
     prompt = f"""
     Based on the analysis, generate a structured JSON object containing:
@@ -259,6 +261,85 @@ def generate_insights_node(state: AgentState):
         
     return {"insights": insights}
 
+# Deep Thinking Agent Workflow
+class DeepThinkingState(TypedDict):
+    query: str
+    user_id: str
+    db: Session
+    provider: str
+    api_key: str
+    analysis: str
+    draft: str
+    critique: str
+    final_output: str
+
+async def analyze_problem_node(state: DeepThinkingState):
+    llm = get_model(state.get("provider"), state.get("api_key"))
+    prompt = f"Decompose this complex planning request into core constraints and goals: {state['query']}"
+    res = await llm.ainvoke([SystemMessage(content="You are a strategic analyst."), HumanMessage(content=prompt)])
+    return {"analysis": res.content}
+
+async def draft_plan_node(state: DeepThinkingState):
+    llm = get_model(state.get("provider"), state.get("api_key"))
+    prompt = f"Based on this analysis: {state['analysis']}, create a detailed draft schedule plan."
+    res = await llm.ainvoke([SystemMessage(content="You are a meticulous planner."), HumanMessage(content=prompt)])
+    return {"draft": res.content}
+
+async def evaluate_plan_node(state: DeepThinkingState):
+    llm = get_model(state.get("provider"), state.get("api_key"))
+    prompt = f"Critique this draft plan for potential conflicts or missed goals: {state['draft']}"
+    res = await llm.ainvoke([SystemMessage(content="You are a critical reviewer."), HumanMessage(content=prompt)])
+    return {"critique": res.content}
+
+async def refine_plan_node(state: DeepThinkingState):
+    llm = get_model(state.get("provider"), state.get("api_key"))
+    prompt = f"Finalize the plan using the original query, draft, and critique: {state['critique']}"
+    res = await llm.ainvoke([SystemMessage(content="You are an expert scheduler."), HumanMessage(content=prompt)])
+    return {"final_output": res.content}
+
+def create_deep_thinking_agent():
+    workflow = StateGraph(DeepThinkingState)
+    workflow.add_node("analyze", analyze_problem_node)
+    workflow.add_node("draft", draft_plan_node)
+    workflow.add_node("evaluate", evaluate_plan_node)
+    workflow.add_node("refine", refine_plan_node)
+    
+    workflow.set_entry_point("analyze")
+    workflow.add_edge("analyze", "draft")
+    workflow.add_edge("draft", "evaluate")
+    workflow.add_edge("evaluate", "refine")
+    workflow.add_edge("refine", END)
+    
+    return workflow.compile()
+
+async def run_deep_think(query: str, user_id: str, db: Session, provider: str = "openai", api_key: str = None):
+    """Refactor to yield progress stages and final result."""
+    agent = create_deep_thinking_agent()
+    
+    # These map internal node names to user-friendly progress strings
+    stage_map = {
+        "analyze": "Analyzing request & constraints...",
+        "draft": "Generating initial reasoning draft...",
+        "evaluate": "Critiquing plan for potential issues...",
+        "refine": "Polishing final recommendation..."
+    }
+    
+    final_output = ""
+    async for event in agent.astream({
+        "query": query, 
+        "user_id": user_id, 
+        "db": db, 
+        "provider": provider, 
+        "api_key": api_key
+    }, stream_mode="updates"):
+        for node, data in event.items():
+            if node in stage_map:
+                yield {"type": "stage", "content": stage_map[node]}
+            if node == "refine" and "final_output" in data:
+                final_output = data["final_output"]
+    
+    yield {"type": "final", "content": final_output}
+
 # Build the Graph
 def create_insight_agent():
     workflow = StateGraph(AgentState)
@@ -282,10 +363,10 @@ def create_insight_agent():
     return workflow.compile()
 
 # Entry point
-def run_full_agent(user_id: str, db: Session, api_key: str = None):
+async def run_full_agent(user_id: str, db: Session, provider: str = "openai", api_key: str = None):
     agent = create_insight_agent()
     # If no user key provided, ChatOpenAI will use OPENAI_API_KEY from environment
-    result = agent.invoke({"user_id": user_id, "db": db, "api_key": api_key})
+    result = await agent.ainvoke({"user_id": user_id, "db": db, "provider": provider, "api_key": api_key})
     return {
         "insights": result["insights"],
         "weekly_plan": result["weekly_plan"],

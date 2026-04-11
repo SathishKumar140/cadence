@@ -16,6 +16,7 @@ export default function SettingsModal({ userId, isOpen, onClose }: SettingsModal
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  const fetchSettings = useCallback(async () => {
     try {
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       if (apiUrl && !apiUrl.startsWith('http')) {
@@ -178,6 +179,41 @@ export default function SettingsModal({ userId, isOpen, onClose }: SettingsModal
                   Your key is stored in your private profile and used only for your own dashboard analysis.
                 </p>
               </div>
+            </div>
+          </section>
+
+          {/* Integrations Section */}
+          <section className="space-y-6">
+            <h3 className="text-[10px] font-black text-indigo-500/60 uppercase tracking-[0.2em] flex items-center gap-2">
+              <Zap className="w-3.5 h-3.5" /> Discovery Integrations
+            </h3>
+            
+            <div className="grid grid-cols-1 gap-4">
+               <div className="flex items-center justify-between p-4 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl">
+                  <div className="flex items-center gap-3">
+                     <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500 text-[10px] font-black">EB</div>
+                     <div>
+                        <p className="text-sm font-bold text-[var(--header-text)]">Eventbrite</p>
+                        <p className="text-[10px] text-slate-500">Official REST API</p>
+                     </div>
+                  </div>
+                  <div className="w-10 h-5 bg-emerald-500/20 rounded-full flex items-center px-1">
+                     <div className="w-3 h-3 bg-emerald-500 rounded-full" />
+                  </div>
+               </div>
+               
+               <div className="flex items-center justify-between p-4 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl opacity-60">
+                  <div className="flex items-center gap-3">
+                     <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-500 text-[10px] font-black">MP</div>
+                     <div>
+                        <p className="text-sm font-bold text-[var(--header-text)]">Meetup</p>
+                        <p className="text-[10px] text-slate-500">Public Scraper</p>
+                     </div>
+                  </div>
+                  <div className="w-10 h-5 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center px-1">
+                     <div className="w-3 h-3 bg-slate-400 rounded-full" />
+                  </div>
+               </div>
             </div>
           </section>
         </div>

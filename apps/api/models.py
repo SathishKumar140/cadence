@@ -56,3 +56,26 @@ class DashboardCache(Base):
     calendar_timezone = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class AgentChatMessage(Base):
+    __tablename__ = "agent_chat_messages"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"))
+    role = Column(String)  # "user" | "assistant" | "system" | "tool"
+    content = Column(String)
+    metadata_json = Column(JSON)  # tool calls, thinking steps, etc.
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Integration(Base):
+    __tablename__ = "integrations"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"))
+    provider = Column(String)  # "eventbrite", "meetup", "luma"
+    access_token = Column(String, nullable=True)
+    refresh_token = Column(String, nullable=True)
+    config = Column(JSON, nullable=True)  # provider-specific settings
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

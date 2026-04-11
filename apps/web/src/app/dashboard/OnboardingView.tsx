@@ -44,6 +44,8 @@ export default function OnboardingView({ userId, onComplete }: OnboardingViewPro
     }
   };
 
+  const handleFinish = async () => {
+    setLoading(true);
     try {
         let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
         if (apiUrl && !apiUrl.startsWith('http')) {
