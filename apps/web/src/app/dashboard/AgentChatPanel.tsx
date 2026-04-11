@@ -1,24 +1,32 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, Brain, Sparkles, MessageSquare, Trash2, Command } from 'lucide-react';
+import Image from 'next/image';
+import { Send, Sparkles } from 'lucide-react';
 import AgentMessage from './AgentMessage';
-import { useDashboard } from './DashboardContext';
+import { useDashboard, WeeklyPlanItem, DashboardMutation } from './DashboardContext';
 
 interface AgentChatPanelProps {
   isOpen: boolean;
-  onClose: () => void;
   userId: string;
 }
 
-export default function AgentChatPanel({ isOpen, onClose, userId }: AgentChatPanelProps) {
-  const [messages, setMessages] = useState<any[]>([]);
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  thinkingSteps?: string[];
+  mutations?: DashboardMutation[];
+  discoveries?: WeeklyPlanItem[];
+}
+
+export default function AgentChatPanel({ isOpen, userId }: AgentChatPanelProps) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [currentThinkingSteps, setCurrentThinkingSteps] = useState<string[]>([]);
   const [currentResponse, setCurrentResponse] = useState('');
-  const [currentMutations, setCurrentMutations] = useState<any[]>([]);
-  const [currentDiscoveries, setCurrentDiscoveries] = useState<any[]>([]);
+  const [currentMutations, setCurrentMutations] = useState<DashboardMutation[]>([]);
+  const [currentDiscoveries, setCurrentDiscoveries] = useState<WeeklyPlanItem[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const { applyMutation } = useDashboard();
 
@@ -32,7 +40,7 @@ export default function AgentChatPanel({ isOpen, onClose, userId }: AgentChatPan
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim() || isStreaming) return;
-    const userMsg = { role: 'user', content: input };
+    const userMsg: ChatMessage = { role: 'user', content: input };
     setMessages(prev => [...prev, userMsg]);
     const userPrompt = input;
     setInput('');
@@ -43,8 +51,8 @@ export default function AgentChatPanel({ isOpen, onClose, userId }: AgentChatPan
     setCurrentDiscoveries([]);
     let accumulatedResponse = '';
     let accumulatedThinkingSteps: string[] = [];
-    let accumulatedMutations: any[] = [];
-    let accumulatedDiscoveries: any[] = [];
+    let accumulatedMutations: DashboardMutation[] = [];
+    let accumulatedDiscoveries: WeeklyPlanItem[] = [];
     try {
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       if (apiUrl && !apiUrl.startsWith('http')) apiUrl = `https://${apiUrl}`;
@@ -114,7 +122,14 @@ export default function AgentChatPanel({ isOpen, onClose, userId }: AgentChatPan
       {/* Header - Ultra-Minimalist Branded Identity */}
       <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--card-border)] bg-[var(--background)]/80 backdrop-blur-xl shrink-0">
         <div className="flex items-center gap-4">
-          <img src="/logo.png" alt="Cadence Logo" className="h-6 w-auto object-contain brightness-110" />
+          <Image 
+            src="/logo.png" 
+            alt="Cadence Logo" 
+            width={72} 
+            height={24} 
+            className="h-6 w-auto object-contain brightness-110" 
+            priority
+          />
           <h2 className="text-[11px] font-black text-[var(--header-text)] uppercase tracking-[0.4em] opacity-60">Cadence AI</h2>
         </div>
       </div>

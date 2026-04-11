@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server';
+import Image from 'next/image';
 import { redirect } from 'next/navigation';
 import { Activity, Clock, Zap, Users, BookOpen, Target } from 'lucide-react';
 import ScheduleList from './ScheduleList';
@@ -143,7 +144,14 @@ export default async function DashboardPage() {
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/30">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full border border-indigo-500/30 p-0.5 overflow-hidden ring-4 ring-indigo-500/5 bg-slate-100">
-                            <img src={user.user_metadata?.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'} alt="Profile" className="w-full h-full object-cover rounded-full" />
+                            <Image 
+                                src={user.user_metadata?.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'} 
+                                alt="Profile" 
+                                width={32} 
+                                height={32} 
+                                className="w-full h-full object-cover rounded-full" 
+                                unoptimized
+                            />
                         </div>
                         <div className="flex flex-col">
                             <span className="text-[10px] font-bold text-[var(--header-text)] leading-none">{user.user_metadata?.full_name || 'User'}</span>

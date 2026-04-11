@@ -2,16 +2,17 @@
 
 import { Brain, MapPin, ExternalLink, Zap } from 'lucide-react';
 
+import { CheckCircle2 } from 'lucide-react';
+import { DashboardMutation, WeeklyPlanItem } from './DashboardContext';
+
 interface AgentMessageProps {
   role: 'user' | 'assistant';
   content: string;
   thinking?: string;
   thinkingSteps?: string[];
-  mutations?: any[];
-  discoveries?: any[];
+  mutations?: DashboardMutation[];
+  discoveries?: WeeklyPlanItem[];
 }
-
-import { CheckCircle2 } from 'lucide-react';
 
 export default function AgentMessage({ role, content, thinking, thinkingSteps, mutations, discoveries }: AgentMessageProps) {
   const isUser = role === 'user';
@@ -69,7 +70,7 @@ export default function AgentMessage({ role, content, thinking, thinkingSteps, m
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] font-bold text-emerald-500 uppercase tracking-tight">AI Mutation Applied</p>
                 <p className="text-xs text-[var(--muted-text)] truncate">
-                  {mut.action === 'add' ? `Added "${mut.data.title}"` : 
+                  {mut.action === 'add' ? `Added "${(mut.data as WeeklyPlanItem).title}"` : 
                    mut.action === 'remove' ? `Removed item` : 
                    mut.action === 'update' ? `Updated dashboard data` : 'Modified state'}
                 </p>
@@ -90,17 +91,17 @@ export default function AgentMessage({ role, content, thinking, thinkingSteps, m
               className="flex items-start gap-4 p-4 bg-[var(--background)] hover:bg-slate-50 dark:hover:bg-slate-900 border border-[var(--card-border)] rounded-3xl transition-all hover:scale-[1.01] hover:shadow-lg group/disco"
             >
               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all group-hover/disco:rotate-3 ${
-                disco.source === 'eventbrite' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
-                disco.source === 'meetup' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
+                disco.discovery_source === 'eventbrite' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
+                disco.discovery_source === 'meetup' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
                 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20'
               }`}>
                 <span className="text-[10px] font-black uppercase text-center leading-none">
-                  {disco.source?.substring(0, 2)}
+                  {disco.discovery_source?.substring(0, 2)}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{disco.source}</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{disco.discovery_source}</span>
                   <ExternalLink className="w-3 h-3 text-slate-400 opacity-0 group-hover/disco:opacity-100 transition-opacity" />
                 </div>
                 <h4 className="text-xs font-bold text-[var(--header-text)] mb-1 line-clamp-1">{disco.title}</h4>

@@ -7,11 +7,11 @@ import SettingsModal from './SettingsModal';
 import OnboardingView from './OnboardingView';
 import AgentChatPanel from './AgentChatPanel';
 import { useDashboardState } from './useDashboardState';
-import { DashboardProvider } from './DashboardContext';
+import { DashboardProvider, WeeklyPlanItem, DashboardInsights, DashboardGoals } from './DashboardContext';
 
 interface DashboardClientWrapperProps {
   userId: string;
-  initialData: { plan?: any[], insights?: any, goals?: any };
+  initialData: { plan?: WeeklyPlanItem[], insights?: DashboardInsights, goals?: DashboardGoals };
   initialSettings: { theme: string; ai_provider: string; ai_api_key: string };
   hasPreferences: boolean;
   children: React.ReactNode;
@@ -61,7 +61,6 @@ export default function DashboardClientWrapper({
           }`}>
              <AgentChatPanel 
                isOpen={showAgentChat} 
-               onClose={() => setShowAgentChat(false)} 
                userId={userId} 
              />
           </div>

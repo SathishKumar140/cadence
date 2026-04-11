@@ -2,14 +2,48 @@
 
 import { createContext, useContext, ReactNode } from 'react';
 
+export interface WeeklyPlanItem {
+  id: string;
+  title: string;
+  day: string;
+  time: string;
+  reason: string;
+  is_discovery?: boolean;
+  is_synced?: boolean;
+  location?: string;
+  discovery_source?: string;
+  url?: string;
+}
+
+export interface DashboardInsights {
+  optimization_score?: number;
+  insight_cards?: {
+    type: string;
+    description: string;
+    impact: string;
+  }[];
+}
+
+export interface DashboardGoals {
+  workout_per_week: number;
+  learning_hours_per_week: number;
+  social_events: number;
+}
+
+export interface DashboardMutation {
+  target: 'weekly_plan' | 'goals' | 'insights';
+  action: 'add' | 'remove' | 'update' | 'replace';
+  data: unknown; 
+}
+
 export interface DashboardState {
-  plan: any[];
-  insights: any;
-  goals: any;
-  applyMutation: (mutation: any) => void;
-  setPlan: (plan: any[]) => void;
-  setInsights: (insights: any) => void;
-  setGoals: (goals: any) => void;
+  plan: WeeklyPlanItem[];
+  insights: DashboardInsights;
+  goals: DashboardGoals;
+  applyMutation: (mutation: DashboardMutation) => void;
+  setPlan: (plan: WeeklyPlanItem[]) => void;
+  setInsights: (insights: DashboardInsights) => void;
+  setGoals: (goals: DashboardGoals) => void;
 }
 
 const DashboardContext = createContext<DashboardState | undefined>(undefined);

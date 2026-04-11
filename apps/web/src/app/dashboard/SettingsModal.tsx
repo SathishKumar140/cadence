@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Settings, X, Moon, Sun, Key, Brain, Save, CheckCircle2 } from 'lucide-react';
+import { Settings, X, Moon, Sun, Key, Brain, Save, CheckCircle2, Zap } from 'lucide-react';
 
 interface SettingsModalProps {
   userId: string;

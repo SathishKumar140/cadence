@@ -3,19 +3,7 @@
 import { Calendar, Clock, CheckCircle2, Loader2, MapPin, Zap, Trash2, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { convertTimeRange } from './TimeUtils';
-import { useDashboard } from './DashboardContext';
-
-interface WeeklyPlanItem {
-  id: string; // Now required for targeted updates
-  title: string;
-  day: string;
-  time: string;
-  reason: string;
-  is_discovery?: boolean;
-  is_synced?: boolean;
-  location?: string;
-  discovery_source?: string;
-}
+import { WeeklyPlanItem, useDashboard } from './DashboardContext';
 
 interface ScheduleListProps {
   accessToken: string;
@@ -27,7 +15,7 @@ export default function ScheduleList({ accessToken, userId, calendarTimezone }: 
   const { plan } = useDashboard();
   // Initialize synced events from server-provided state
   const [syncedEvents, setSyncedEvents] = useState<string[]>(() => 
-    plan.filter((item: any) => item.is_synced).map((item: any) => item.id)
+    plan.filter((item) => item.is_synced).map((item) => item.id)
   );
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [rethinkingId, setRethinkingId] = useState<string | null>(null);
