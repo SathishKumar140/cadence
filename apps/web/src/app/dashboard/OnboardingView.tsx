@@ -44,10 +44,11 @@ export default function OnboardingView({ userId, onComplete }: OnboardingViewPro
     }
   };
 
-  const handleFinish = async () => {
-    setLoading(true);
     try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        if (apiUrl && !apiUrl.startsWith('http')) {
+            apiUrl = `https://${apiUrl}`;
+        }
         const res = await fetch(`${apiUrl}/api/user/preferences?user_id=${userId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

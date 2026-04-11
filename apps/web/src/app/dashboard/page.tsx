@@ -21,7 +21,10 @@ export default async function DashboardPage() {
   }
 
   const accessToken = session.provider_token || '';
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  if (apiUrl && !apiUrl.startsWith('http')) {
+    apiUrl = `https://${apiUrl}`;
+  }
 
   // 1. Fetch Dynamic Insights, Preferences & Settings
   let data = {

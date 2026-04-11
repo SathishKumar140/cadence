@@ -15,7 +15,10 @@ export default function TimeZoneBadge({ userId, accessToken }: TimeZoneBadgeProp
     const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     setTz(detectedTz);
     
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    if (apiUrl && !apiUrl.startsWith('http')) {
+        apiUrl = `https://${apiUrl}`;
+    }
 
     // Trigger sync with the detected timezone
     fetch(`${apiUrl}/api/calendar/sync`, {

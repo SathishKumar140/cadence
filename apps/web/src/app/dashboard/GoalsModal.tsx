@@ -58,7 +58,10 @@ export default function GoalsModal({ onClose, userId, initialGoals, initialInter
 
   const handleSave = async () => {
     setIsSaving(true);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    if (apiUrl && !apiUrl.startsWith('http')) {
+      apiUrl = `https://${apiUrl}`;
+    }
 
     try {
       const res = await fetch(`${apiUrl}/api/user/preferences?user_id=${userId}`, {

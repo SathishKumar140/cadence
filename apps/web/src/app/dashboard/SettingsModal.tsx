@@ -16,9 +16,11 @@ export default function SettingsModal({ userId, isOpen, onClose }: SettingsModal
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const fetchSettings = useCallback(async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      if (apiUrl && !apiUrl.startsWith('http')) {
+          apiUrl = `https://${apiUrl}`;
+      }
       const res = await fetch(`${apiUrl}/api/user/settings?user_id=${userId}`);
       if (res.ok) {
         const data = await res.json();
@@ -43,7 +45,10 @@ export default function SettingsModal({ userId, isOpen, onClose }: SettingsModal
   const handleSave = async () => {
     setSaving(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      if (apiUrl && !apiUrl.startsWith('http')) {
+          apiUrl = `https://${apiUrl}`;
+      }
       const res = await fetch(`${apiUrl}/api/user/settings?user_id=${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

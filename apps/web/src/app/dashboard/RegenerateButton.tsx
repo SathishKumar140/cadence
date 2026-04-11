@@ -14,7 +14,10 @@ export default function RegenerateButton({ userId }: { userId: string }) {
     window.dispatchEvent(new CustomEvent('regen-start'));
     
     try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        if (apiUrl && !apiUrl.startsWith('http')) {
+            apiUrl = `https://${apiUrl}`;
+        }
         // Invalidate cache first
         await fetch(`${apiUrl}/api/dashboard/cache?user_id=${userId}`, {
             method: 'DELETE'

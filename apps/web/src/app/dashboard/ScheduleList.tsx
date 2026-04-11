@@ -41,7 +41,10 @@ export default function ScheduleList({ plan, accessToken, userId, calendarTimezo
 
   const addEventToCalendar = async (item: WeeklyPlanItem) => {
     setSyncingId(item.id);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    if (apiUrl && !apiUrl.startsWith('http')) {
+        apiUrl = `https://${apiUrl}`;
+    }
     try {
         const res = await fetch(`${apiUrl}/api/calendar/add-event`, {
             method: 'POST',
@@ -73,7 +76,10 @@ export default function ScheduleList({ plan, accessToken, userId, calendarTimezo
     if (!confirm(`Are you sure you want to remove "${item.title}" from your calendar?`)) return;
     
     setSyncingId(item.id);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    if (apiUrl && !apiUrl.startsWith('http')) {
+        apiUrl = `https://${apiUrl}`;
+    }
     try {
         const res = await fetch(`${apiUrl}/api/calendar/event?user_id=${userId}&item_id=${item.id}&access_token=${accessToken}`, {
             method: 'DELETE'
@@ -93,7 +99,10 @@ export default function ScheduleList({ plan, accessToken, userId, calendarTimezo
 
   const suggestAlternate = async (item: WeeklyPlanItem) => {
     setRethinkingId(item.id);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    if (apiUrl && !apiUrl.startsWith('http')) {
+        apiUrl = `https://${apiUrl}`;
+    }
     try {
         // REMOVED Global Dispatch to stay inline
         
