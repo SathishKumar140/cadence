@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar, Clock, CheckCircle2, Loader2, MapPin, Zap, Trash2, Sparkles, RefreshCw } from 'lucide-react';
+import { Calendar, Clock, CheckCircle2, Loader2, MapPin, Zap, Trash2, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { convertTimeRange } from './TimeUtils';
 
@@ -185,7 +185,7 @@ export default function ScheduleList({ plan, accessToken, userId, calendarTimezo
                             </span>
                           )}
                         </div>
-                        <p className="text-xs sm:text-sm text-[var(--muted-text)] mt-1 italic font-light leading-relaxed line-clamp-2 md:line-clamp-none">"{item.reason}"</p>
+                        <p className="text-xs sm:text-sm text-[var(--muted-text)] mt-1 italic font-light leading-relaxed line-clamp-2 md:line-clamp-none">&quot;{item.reason}&quot;</p>
                       </div>
                     </div>
                     

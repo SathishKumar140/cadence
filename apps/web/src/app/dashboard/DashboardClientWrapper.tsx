@@ -22,7 +22,7 @@ export default function DashboardClientWrapper({
   const [showSettings, setShowSettings] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(!hasPreferences);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [theme, setTheme] = useState(initialSettings.theme);
+  const [theme] = useState(initialSettings.theme);
 
   useEffect(() => {
     // Sync cookie on mount if missing

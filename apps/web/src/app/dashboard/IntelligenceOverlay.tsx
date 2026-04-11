@@ -22,7 +22,7 @@ export default function IntelligenceOverlay({ message }: IntelligenceOverlayProp
       setStep((prev) => (prev + 1) % steps.length);
     }, 2500);
     return () => clearInterval(interval);
-  }, []);
+  }, [steps.length]);
 
   return (
     <div className="fixed inset-0 z-[200] bg-[var(--overlay-bg)] backdrop-blur-2xl flex flex-col items-center justify-center animate-in fade-in duration-700">

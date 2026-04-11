@@ -3,9 +3,18 @@
 import { useState } from 'react';
 import { Target, Zap, Rocket, ArrowRight, Brain, Sparkles, User, Heart, Book, Coffee } from 'lucide-react';
 
+interface OnboardingPreferences {
+  goals: {
+    workout_per_week: number;
+    learning_hours_per_week: number;
+    social_events: number;
+  };
+  interests: string[];
+}
+
 interface OnboardingViewProps {
   userId: string;
-  onComplete: (preferences: any) => void;
+  onComplete: (preferences: OnboardingPreferences) => void;
 }
 
 export default function OnboardingView({ userId, onComplete }: OnboardingViewProps) {
@@ -78,7 +87,7 @@ export default function OnboardingView({ userId, onComplete }: OnboardingViewPro
                 <User className="w-8 h-8" />
               </div>
               <h1 className="text-4xl font-black text-white tracking-tight">Welcome to Cadence.</h1>
-              <p className="text-xl text-slate-400 font-medium">Let's find your rhythm. What are you passionate about?</p>
+              <p className="text-xl text-slate-400 font-medium">Let&apos;s find your rhythm. What are you passionate about?</p>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -170,7 +179,7 @@ export default function OnboardingView({ userId, onComplete }: OnboardingViewPro
             <div className="space-y-4">
               <h1 className="text-4xl font-black text-white tracking-tight italic">Initialize Intelligence</h1>
               <p className="text-lg text-slate-400 max-w-sm mx-auto leading-relaxed">
-                We're ready to analyze your patterns and scour for opportunities. 
+                We&apos;re ready to analyze your patterns and scour for opportunities. 
                 Buckle up for your first agentic week.
               </p>
             </div>

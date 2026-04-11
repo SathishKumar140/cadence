@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
-import { Calendar, User, Activity, Clock, Zap, Users, BookOpen, Target } from 'lucide-react';
+import { Activity, Clock, Zap, Users, BookOpen, Target } from 'lucide-react';
 import ScheduleList from './ScheduleList';
 import LogoutButton from './LogoutButton';
 import TimeZoneBadge from './TimeZoneBadge';
@@ -223,7 +223,7 @@ export default async function DashboardPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {data.insights.insight_cards.map((card: any, idx) => {
+                {data.insights.insight_cards.map((card: { title: string; description: string; score_type?: string; impact?: number }, idx) => {
                     const styles = getColors(card.score_type || '');
                     return (
                     <div key={idx} className="group relative bg-[var(--card-bg)] backdrop-blur-2xl border border-[var(--card-border)] p-5 rounded-3xl hover:bg-[var(--card-hover-bg)] transition-all duration-500 hover:scale-[1.02] shadow-sm hover:shadow-xl dark:shadow-none overflow-hidden">

@@ -14,29 +14,10 @@ export function convertTimeRange(
       const [hours, minutes] = timeStr.split(':').map(Number);
       
       // We use a dummy date (today) for the conversion context
-      const date = new Date();
       
       // Create a string representation in the source timezone
-      const sourceDateStr = new Intl.DateTimeFormat('en-US', {
-        timeZone: sourceTz,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(date);
       
-      // This is a bit complex with native JS. 
-      // A better way for pure JS without a library:
-      const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: sourceTz,
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: false
-      });
-      
-      // We need to find the offset difference.
+      // we need to find the offset difference.
       const getOffset = (tz: string) => {
         const date = new Date();
         const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));

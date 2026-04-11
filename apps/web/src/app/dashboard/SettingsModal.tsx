@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Settings, X, Moon, Sun, Key, Brain, Save, CheckCircle2 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -16,13 +16,7 @@ export default function SettingsModal({ userId, isOpen, onClose }: SettingsModal
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchSettings();
-    }
-  }, [isOpen]);
-
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       const res = await fetch(`${apiUrl}/api/user/settings?user_id=${userId}`);
@@ -38,7 +32,13 @@ export default function SettingsModal({ userId, isOpen, onClose }: SettingsModal
     } catch (e) {
       console.error("Failed to fetch settings", e);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchSettings();
+    }
+  }, [isOpen, fetchSettings]);
 
   const handleSave = async () => {
     setSaving(true);
