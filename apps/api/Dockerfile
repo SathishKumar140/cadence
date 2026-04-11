@@ -22,12 +22,9 @@ RUN mkdir -p /data
 RUN useradd -m -u 1001 cadence && chown -R cadence:cadence /app /data
 USER cadence
 
-# Expose API port
-EXPOSE 8000
+# Railway provides a dynamic PORT environment variable.
+# We default to 8000 for local compatibility.
+ENV PORT=8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
-
-# Start the server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# Start the server using the dynamic port
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers 2"]
