@@ -113,7 +113,6 @@ async def get_dashboard_data(user_id: str, db: Session = Depends(get_db)):
                 plan = cached.weekly_plan
                 
                 # Self-healing: Ensure all items have IDs for targeted management
-                import uuid
                 plan_updated = False
                 for item in plan:
                     if not item.get("id"):

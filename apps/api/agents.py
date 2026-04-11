@@ -1,4 +1,6 @@
 import os
+import json
+import uuid
 from typing import List, Dict, Any, TypedDict
 from datetime import datetime
 from dotenv import load_dotenv
@@ -177,8 +179,6 @@ def planner_agent_node(state: AgentState):
     
     response = llm.invoke([SystemMessage(content="You are a proactive planner."), HumanMessage(content=prompt)])
     
-    import json
-    import uuid
     try:
         content = response.content.replace("```json", "").replace("```", "").strip()
         weekly_plan = json.loads(content)
