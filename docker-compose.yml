@@ -13,7 +13,7 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ALLOW_ORIGINS=${ALLOW_ORIGINS:-http://localhost:3000}
-      - DATABASE_URL=sqlite:////data/cadence.db
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////data/cadence.db}
     volumes:
       - cadence_db:/data     # Persist SQLite across restarts
     healthcheck:
