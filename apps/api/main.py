@@ -21,16 +21,23 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Cadence API", description="AI Operations System Backend", version="1.0.0")
 
 # Setup CORS
-raw_origins = os.getenv("ALLOW_ORIGINS", "http://localhost:3000")
-allow_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+raw_origins = os.getenv("ALLOW_ORIGINS", "*")
+if raw_origins == "*":
+    allow_origins = ["*"]
+    allow_credentials = False # Credentials cannot be True with "*"
+else:
+    allow_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+    allow_credentials = True
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
+print(f"DEBUG: CORS initialized with origins: {allow_origins}, credentials: {allow_credentials}")
 
 @app.get("/health")
 def health_check():
