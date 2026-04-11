@@ -24,7 +24,7 @@ app = FastAPI(title="Cadence API", description="AI Operations System Backend", v
 raw_origins = os.getenv("ALLOW_ORIGINS", "*")
 if raw_origins == "*":
     allow_origins = ["*"]
-    allow_credentials = False # Credentials cannot be True with "*"
+    allow_credentials = False
 else:
     allow_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
     allow_credentials = True
@@ -37,11 +37,19 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"]
 )
+
+# Request logger for debugging CORS
+@app.middleware("http")
+async def log_requests(request, call_next):
+    print(f"DEBUG RECV: {request.method} {request.url.path}")
+    response = await call_next(request)
+    return response
+
 print(f"DEBUG: CORS initialized with origins: {allow_origins}, credentials: {allow_credentials}")
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "service": "cadence-api"}
+    return {"status": "healthy", "service": "cadence-api"}
 
 
 from agents import run_full_agent
@@ -328,6 +336,10 @@ def update_user_settings(user_id: str, req: UserSettingsUpdate, db: Session = De
     db.commit()
     return {"status": "success"}
 
+@app.options("/api/user/preferences")
+async def options_user_preferences():
+    return {}
+
 @app.get("/api/user/preferences")
 def get_preferences(user_id: str, db: Session = Depends(get_db)):
     pref = db.query(models.UserPreference).filter(models.UserPreference.user_id == user_id).first()
@@ -507,7 +519,3 @@ async def sync_calendar(req: SyncRequest, db: Session = Depends(get_db)):
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Cadence API!"}
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
