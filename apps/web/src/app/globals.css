@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a; /* slate-900 */
+  --header-text: #0f172a;
+  --card-bg: rgba(255, 255, 255, 0.4);
+  --card-hover-bg: rgba(255, 255, 255, 0.6);
+  --card-border: rgba(15, 23, 42, 0.08); /* subtle slate-900/8 */
+  --muted-text: #64748b; /* slate-500 */
+  --overlay-bg: rgba(255, 255, 255, 0.8);
+  --input-bg: #f1f5f9; /* slate-100 */
+}
+
+.dark {
+  --background: #020617; /* slate-950 */
+  --foreground: #f8fafc; /* slate-50 */
+  --header-text: #ffffff;
+  --card-bg: rgba(15, 23, 42, 0.6); /* slate-900/60 */
+  --card-hover-bg: rgba(15, 23, 42, 0.9); /* slate-900/90 */
+  --card-border: rgba(255, 255, 255, 0.1); 
+  --muted-text: #94a3b8; /* slate-400 */
+  --overlay-bg: rgba(2, 6, 23, 0.9);
+  --input-bg: #1e293b; /* slate-800 */
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  position: relative;
+  transition: background-color 0.5s ease;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
