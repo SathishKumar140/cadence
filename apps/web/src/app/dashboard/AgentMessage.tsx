@@ -31,7 +31,7 @@ export default function AgentMessage({ role, content, thinking, thinkingSteps, m
             <div className="p-1 bg-indigo-500/10 rounded-lg">
               <Brain className={`w-3.5 h-3.5 text-indigo-400 ${(content || (discoveries && discoveries.length > 0)) ? '' : 'animate-pulse'}`} />
             </div>
-            <span className="text-[11px] text-indigo-300 font-bold uppercase tracking-[0.15em] leading-none">
+            <span className="text-[11px] text-indigo-600 dark:text-indigo-300 font-bold uppercase tracking-[0.15em] leading-none">
               Cognitive Reasoning Process
             </span>
           </div>
@@ -41,7 +41,7 @@ export default function AgentMessage({ role, content, thinking, thinkingSteps, m
                 <div className="mt-1">
                   <CheckCircle2 className="w-3 h-3 text-indigo-500/80 shadow-[0_0_8px_rgba(99,102,241,0.3)]" />
                 </div>
-                <span className="text-[12px] text-zinc-100 font-medium leading-normal tracking-wide transition-all">
+                <span className="text-[12px] text-slate-700 dark:text-zinc-100 font-medium leading-normal tracking-wide transition-all">
                   {step}
                 </span>
               </div>
