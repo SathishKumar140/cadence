@@ -355,6 +355,14 @@ def get_preferences(user_id: str, db: Session = Depends(get_db)):
 
 @app.post("/api/user/preferences")
 def update_preferences(user_id: str, req: PreferenceUpdate, db: Session = Depends(get_db)):
+    # Self-healing: Ensure user exists in 'users' table first to avoid FK violation
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        print(f"DEBUG: Creating skeleton user {user_id} for preferences")
+        user = models.User(id=user_id, email=f"{user_id}@placeholder.com")
+        db.add(user)
+        db.commit()
+
     pref = db.query(models.UserPreference).filter(models.UserPreference.user_id == user_id).first()
     if not pref:
         pref = models.UserPreference(id=str(uuid.uuid4()), user_id=user_id, goals=req.goals, interests=req.interests)
@@ -363,6 +371,7 @@ def update_preferences(user_id: str, req: PreferenceUpdate, db: Session = Depend
         pref.goals = req.goals
     pref.interests = req.interests
     db.commit()
+    
     # Invalidate dashboard cache on preference update
     db.query(models.DashboardCache).filter(models.DashboardCache.user_id == user_id).delete()
     db.commit()
