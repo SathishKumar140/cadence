@@ -7,12 +7,21 @@ import SettingsModal from './SettingsModal';
 import OnboardingView from './OnboardingView';
 import AgentChatPanel from './AgentChatPanel';
 import { useDashboardState } from './useDashboardState';
-import { DashboardProvider, WeeklyPlanItem, DashboardInsights, DashboardGoals } from './DashboardContext';
+import { DashboardProvider, WeeklyPlanItem, DashboardInsights, DashboardGoals, Routine, Goal, ScheduledEmail } from './DashboardContext';
+import DynamicViewCanvas from './DynamicViewCanvas';
 
 interface DashboardClientWrapperProps {
   userId: string;
-  initialData: { plan?: WeeklyPlanItem[], insights?: DashboardInsights, goals?: DashboardGoals };
+  initialData: { 
+    plan?: WeeklyPlanItem[], 
+    insights?: DashboardInsights, 
+    goals?: DashboardGoals,
+    routines?: Routine[],
+    activeGoals?: Goal[],
+    emails?: ScheduledEmail[]
+  };
   initialSettings: { theme: string; ai_provider: string; ai_api_key: string };
+  initialAccessToken: string;
   hasPreferences: boolean;
   children: React.ReactNode;
 }
@@ -20,7 +29,8 @@ interface DashboardClientWrapperProps {
 export default function DashboardClientWrapper({ 
   userId, 
   initialData,
-  initialSettings, 
+  initialSettings,
+  initialAccessToken,
   hasPreferences, 
   children 
 }: DashboardClientWrapperProps) {
@@ -28,7 +38,11 @@ export default function DashboardClientWrapper({
   const [showAgentChat, setShowAgentChat] = useState(true); // Open by default
   const [showOnboarding, setShowOnboarding] = useState(!hasPreferences);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const dashboardState = useDashboardState(initialData);
+  const dashboardState = useDashboardState({
+    userId,
+    accessToken: initialAccessToken,
+    ...initialData
+  });
   const [theme] = useState(initialSettings.theme);
 
   useEffect(() => {
@@ -65,14 +79,27 @@ export default function DashboardClientWrapper({
              />
           </div>
 
-          {/* RIGHT: Dashboard Hub (60% on Desktop) */}
+          {/* RIGHT: Dashboard Hub (60% on Desktop) - Now Dynamic */}
           <div className="lg:w-[60%] flex-1 h-full overflow-y-auto bg-[var(--background)] relative custom-scrollbar">
             {/* Background gradients confined to the content area */}
             <div className="absolute top-0 right-0 w-[60%] h-[40%] bg-indigo-600/[0.05] blur-[120px] rounded-full pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[40%] h-[40%] bg-violet-600/[0.05] blur-[100px] rounded-full pointer-events-none" />
             
-            <div className="relative z-10">
-              {children}
+            <div className="relative z-10 w-full h-full">
+              <DynamicViewCanvas />
+              {/* Optional: we could keep {children} for static pieces, but the design calls for a total swap. */}
+            </div>
+
+            {/* View Switching Sidebar (Collapsed manual navigation) */}
+            <div className="fixed top-1/2 -translate-y-1/2 right-4 z-[100] flex flex-col gap-2 scale-75 opacity-20 hover:opacity-100 transition-opacity">
+               {['schedule', 'linkedin_composer', 'time_slots', 'routine_dashboard', 'goal_editor', 'email_scheduler'].map((v) => (
+                 <button 
+                   key={v}
+                   onClick={() => dashboardState.setActiveView(v)}
+                   className={`w-3 h-3 rounded-full transition-all ${dashboardState.activeView === v ? 'bg-indigo-500 scale-125' : 'bg-slate-300 dark:bg-slate-700'}`}
+                   title={v}
+                 />
+               ))}
             </div>
 
             {/* Mobile Settings Trigger */}
@@ -87,7 +114,7 @@ export default function DashboardClientWrapper({
           </div>
         </div>
 
-        {/* Mobile-Only Restoration Toggle */}
+        {/* ... mobile toggle, overlay, etc ... */}
         {!showAgentChat && (
           <div className="fixed bottom-6 left-6 z-[155] lg:hidden">
             <button 

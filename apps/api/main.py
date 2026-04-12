@@ -93,6 +93,40 @@ class AlternateRequest(BaseModel):
     day: str = ""
     time: str = ""
 
+class RoutineCreate(BaseModel):
+    user_id: str
+    name: str
+    description: str = ""
+    schedule: str = "daily"
+    alert_time: Optional[str] = None
+
+class GoalCreate(BaseModel):
+    user_id: str
+    title: str
+    target_value: float
+    unit: str = "times"
+    category: str = "general"
+    deadline: Optional[str] = None
+
+class GoalUpdate(BaseModel):
+    progress_delta: float
+
+class EmailCreate(BaseModel):
+    user_id: str
+    subject: str
+    body: str
+    recipient: str
+    send_at: str
+
+class ListenerCreate(BaseModel):
+    user_id: str
+    topic: str
+    context_instruction: Optional[str] = None
+
+class ActionResolve(BaseModel):
+    user_id: str
+    resolution: str  # 'dismissed', 'promoted', 'completed'
+
 # Helper Functions
 def get_next_weekday(day_str: str, time_str: str, user_tz: str = "UTC"):
     days = {"Monday": MO, "Tuesday": TU, "Wednesday": WE, "Thursday": TH, "Friday": FR, "Saturday": SA, "Sunday": SU}
@@ -123,6 +157,101 @@ def get_next_weekday(day_str: str, time_str: str, user_tz: str = "UTC"):
         return now.isoformat(), (now + timedelta(hours=1)).isoformat()
 
 # Endpoints
+@app.get("/api/skills")
+def list_skills():
+    from skills import registry
+    return [{"name": s.name, "display_name": s.display_name, "description": s.description, "ui_view": s.ui_view} for s in registry.all()]
+
+@app.get("/api/routines")
+def get_routines(user_id: str, db: Session = Depends(get_db)):
+    routines = db.query(models.Routine).filter(models.Routine.user_id == user_id, models.Routine.is_active == True).all()
+    return routines
+
+@app.post("/api/routines")
+def create_routine(req: RoutineCreate, db: Session = Depends(get_db)):
+    routine = models.Routine(
+        id=str(uuid.uuid4()),
+        user_id=req.user_id,
+        name=req.name,
+        description=req.description,
+        schedule=req.schedule,
+        alert_time=req.alert_time
+    )
+    db.add(routine)
+    db.commit()
+    db.refresh(routine)
+    return routine
+
+@app.delete("/api/routines/{routine_id}")
+def delete_routine(routine_id: str, user_id: str, db: Session = Depends(get_db)):
+    routine = db.query(models.Routine).filter(models.Routine.id == routine_id, models.Routine.user_id == user_id).first()
+    if routine:
+        routine.is_active = False
+        db.commit()
+    return {"status": "success"}
+
+@app.get("/api/goals")
+def get_goals(user_id: str, db: Session = Depends(get_db)):
+    goals = db.query(models.Goal).filter(models.Goal.user_id == user_id, models.Goal.is_active == True).all()
+    return goals
+
+@app.post("/api/goals")
+def create_goal(req: GoalCreate, db: Session = Depends(get_db)):
+    deadline_dt = None
+    if req.deadline:
+        try:
+            deadline_dt = date_parser.parse(req.deadline, fuzzy=True)
+        except:
+            pass
+            
+    goal = models.Goal(
+        id=str(uuid.uuid4()),
+        user_id=req.user_id,
+        title=req.title,
+        target_value=req.target_value,
+        unit=req.unit,
+        category=req.category,
+        deadline=deadline_dt
+    )
+    db.add(goal)
+    db.commit()
+    db.refresh(goal)
+    return goal
+
+@app.put("/api/goals/{goal_id}/progress")
+def update_goal_progress(goal_id: str, user_id: str, req: GoalUpdate, db: Session = Depends(get_db)):
+    goal = db.query(models.Goal).filter(models.Goal.id == goal_id, models.Goal.user_id == user_id).first()
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    goal.current_value += req.progress_delta
+    db.commit()
+    return {"status": "success", "current_value": goal.current_value}
+
+@app.get("/api/emails")
+def get_emails(user_id: str, db: Session = Depends(get_db)):
+    emails = db.query(models.ScheduledEmail).filter(models.ScheduledEmail.user_id == user_id).all()
+    return emails
+
+@app.post("/api/emails")
+def create_email(req: EmailCreate, db: Session = Depends(get_db)):
+    try:
+        send_time = date_parser.parse(req.send_at, fuzzy=True)
+    except:
+        send_time = datetime.utcnow() + timedelta(hours=1)
+        
+    email = models.ScheduledEmail(
+        id=str(uuid.uuid4()),
+        user_id=req.user_id,
+        subject=req.subject,
+        body=req.body,
+        recipient=req.recipient,
+        send_at=send_time
+    )
+    db.add(email)
+    db.commit()
+    db.refresh(email)
+    return email
+
 @app.get("/api/dashboard/insights")
 async def get_dashboard_data(user_id: str, db: Session = Depends(get_db)):
     try:
@@ -583,6 +712,42 @@ async def agent_chat_endpoint(req: ChatRequest, db: Session = Depends(get_db)):
 async def get_agent_history(user_id: str, db: Session = Depends(get_db)):
     msgs = db.query(models.AgentChatMessage).filter(models.AgentChatMessage.user_id == user_id).order_by(models.AgentChatMessage.created_at.asc()).limit(50).all()
     return msgs
+
+# Topic Listeners & Pending Actions
+@app.get("/api/listeners")
+def get_listeners(user_id: str, db: Session = Depends(get_db)):
+    return db.query(models.TopicListener).filter(models.TopicListener.user_id == user_id).all()
+
+@app.post("/api/listeners")
+def create_listener(req: ListenerCreate, db: Session = Depends(get_db)):
+    listener = models.TopicListener(
+        id=str(uuid.uuid4()),
+        user_id=req.user_id,
+        topic=req.topic,
+        context_instruction=req.context_instruction
+    )
+    db.add(listener)
+    db.commit()
+    return listener
+
+@app.get("/api/actions/pending")
+def get_pending_actions(user_id: str, db: Session = Depends(get_db)):
+    return db.query(models.PendingAction).filter(
+        models.PendingAction.user_id == user_id,
+        models.PendingAction.status == "pending"
+    ).all()
+
+@app.post("/api/actions/{action_id}/resolve")
+def resolve_action(action_id: str, req: ActionResolve, db: Session = Depends(get_db)):
+    action = db.query(models.PendingAction).filter(
+        models.PendingAction.id == action_id,
+        models.PendingAction.user_id == req.user_id
+    ).first()
+    if not action:
+        raise HTTPException(status_code=404, detail="Action not found")
+    action.status = req.resolution
+    db.commit()
+    return {"status": "success"}
 
 @app.get("/api/events/discover")
 async def discover_events(user_id: str, db: Session = Depends(get_db)):

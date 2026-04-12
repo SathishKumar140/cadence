@@ -28,7 +28,7 @@ export default function AgentChatPanel({ isOpen, userId }: AgentChatPanelProps) 
   const [currentMutations, setCurrentMutations] = useState<DashboardMutation[]>([]);
   const [currentDiscoveries, setCurrentDiscoveries] = useState<WeeklyPlanItem[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const { applyMutation } = useDashboard();
+    const { applyMutation, setActiveView, setViewData } = useDashboard();
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -36,7 +36,6 @@ export default function AgentChatPanel({ isOpen, userId }: AgentChatPanelProps) 
     }
   }, [messages, currentResponse, currentThinkingSteps]);
 
-  // Handle Send logic remains the same...
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim() || isStreaming) return;
@@ -87,6 +86,11 @@ export default function AgentChatPanel({ isOpen, userId }: AgentChatPanelProps) 
                 applyMutation(event.data);
                 accumulatedMutations = [...accumulatedMutations, event.data];
                 setCurrentMutations(accumulatedMutations);
+              } else if (event.type === 'ui_directive') {
+                // Prevent flicker: only update if the view is changing or if the data is significantly different
+                // In a production app, we'd use a deep compare here.
+                setActiveView(event.view);
+                setViewData(event.data);
               } else if (event.type === 'discoveries') {
                 accumulatedDiscoveries = [...accumulatedDiscoveries, ...event.data];
                 setCurrentDiscoveries(accumulatedDiscoveries);
