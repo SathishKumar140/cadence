@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Brain } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Brain, Calendar, ImagePlus, Shield, Target, Zap } from 'lucide-react';
 import IntelligenceOverlay from './IntelligenceOverlay';
 import SettingsModal from './SettingsModal';
 import OnboardingView from './OnboardingView';
@@ -12,6 +12,7 @@ import DynamicViewCanvas from './DynamicViewCanvas';
 
 interface DashboardClientWrapperProps {
   userId: string;
+  user: { email: string | undefined; full_name: string; avatar_url?: string };
   initialData: { 
     plan?: WeeklyPlanItem[], 
     insights?: DashboardInsights, 
@@ -23,16 +24,15 @@ interface DashboardClientWrapperProps {
   initialSettings: { theme: string; ai_provider: string; ai_api_key: string };
   initialAccessToken: string;
   hasPreferences: boolean;
-  children: React.ReactNode;
 }
 
 export default function DashboardClientWrapper({ 
   userId, 
+  user,
   initialData,
   initialSettings,
   initialAccessToken,
-  hasPreferences, 
-  children 
+  hasPreferences
 }: DashboardClientWrapperProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [showAgentChat, setShowAgentChat] = useState(true); // Open by default
@@ -43,6 +43,7 @@ export default function DashboardClientWrapper({
     accessToken: initialAccessToken,
     ...initialData
   });
+  const { activeView, setActiveView } = dashboardState;
   const [theme] = useState(initialSettings.theme);
 
   useEffect(() => {
@@ -64,7 +65,7 @@ export default function DashboardClientWrapper({
   }, []);
 
   return (
-    <DashboardProvider value={dashboardState}>
+    <DashboardProvider value={{ ...dashboardState, onOpenSettings: () => setShowSettings(true) }}>
       <div className={`h-screen flex flex-col bg-[var(--background)] overflow-hidden ${theme === 'dark' ? 'dark' : ''}`}>
         {/* Unified Layout Container */}
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
@@ -76,6 +77,7 @@ export default function DashboardClientWrapper({
              <AgentChatPanel 
                isOpen={showAgentChat} 
                userId={userId} 
+               user={user}
              />
           </div>
 
@@ -92,25 +94,35 @@ export default function DashboardClientWrapper({
 
             {/* View Switching Sidebar (Collapsed manual navigation) */}
             <div className="fixed top-1/2 -translate-y-1/2 right-4 z-[100] flex flex-col gap-2 scale-75 opacity-20 hover:opacity-100 transition-opacity">
-               {['schedule', 'linkedin_composer', 'time_slots', 'routine_dashboard', 'goal_editor', 'email_scheduler'].map((v) => (
-                 <button 
-                   key={v}
-                   onClick={() => dashboardState.setActiveView(v)}
-                   className={`w-3 h-3 rounded-full transition-all ${dashboardState.activeView === v ? 'bg-indigo-500 scale-125' : 'bg-slate-300 dark:bg-slate-700'}`}
-                   title={v}
-                 />
+               {['schedule', 'linkedin_composer', 'routine_dashboard', 'goal_editor', 'knowledge_hub', 'discovery_feed'].map((v) => (
+                 <div key={v} className="relative group">
+                   <button 
+                     onClick={() => setActiveView(v)}
+                     className={`w-10 h-10 rounded-xl transition-all duration-500 flex items-center justify-center relative ${
+                       activeView === v 
+                         ? 'bg-indigo-600 shadow-[0_4px_20px_rgba(79,70,229,0.3)] scale-110 rotate-3' 
+                         : 'text-slate-400 dark:text-zinc-600 hover:text-indigo-500 hover:bg-indigo-500/5'
+                     }`}
+                   >
+                     {v === 'schedule' && <Calendar className="w-5 h-5" />}
+                     {v === 'linkedin_composer' && <ImagePlus className="w-5 h-5" />}
+                     {v === 'routine_dashboard' && <Shield className="w-5 h-5" />}
+                     {v === 'goal_editor' && <Target className="w-5 h-5" />}
+                     {v === 'knowledge_hub' && <Brain className="w-5 h-5" />}
+                     {v === 'discovery_feed' && <Zap className="w-5 h-5" />}
+                     
+                     {activeView === v && (
+                       <span className="absolute -left-1 top-1.5 bottom-1.5 w-0.5 bg-white rounded-full animate-in fade-in zoom-in duration-500" />
+                     )}
+                   </button>
+                   {/* Modern Tooltip */}
+                   <span className="absolute left-full ml-4 px-3 py-1.5 bg-slate-900 text-white text-[10px] font-black tracking-widest uppercase rounded-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none translate-x-[-10px] group-hover:translate-x-0 z-[100] whitespace-nowrap shadow-xl border border-white/10">
+                      {v === 'discovery_feed' ? 'Discovery Feed' : v.replace('_', ' ')}
+                   </span>
+                 </div>
                ))}
             </div>
 
-            {/* Mobile Settings Trigger */}
-            <div className="fixed top-6 right-6 z-[170] hidden lg:block">
-               <button 
-                 onClick={() => setShowSettings(true)}
-                 className="p-3 bg-white/10 hover:bg-white/20 dark:bg-slate-900/50 dark:hover:bg-slate-800 backdrop-blur-xl border border-white/20 dark:border-slate-800 rounded-2xl transition-all shadow-xl group"
-               >
-                 <SettingsIcon className="w-5 h-5 text-slate-700 dark:text-slate-400 group-hover:rotate-90 transition-transform duration-500" />
-               </button>
-            </div>
           </div>
         </div>
 

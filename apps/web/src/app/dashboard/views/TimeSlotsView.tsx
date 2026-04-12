@@ -1,33 +1,35 @@
 import React, { useState } from 'react';
 import { Calendar, Clock, CheckCircle2, AlertCircle, Plus, Star, Loader2 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { useDashboard } from '../DashboardContext';
+
+interface Slot {
+  day: string;
+  date: string;
+  start: string;
+  end: string;
+  duration_minutes: number;
+  quality: 'high' | 'medium';
+  locked?: boolean;
+}
 
 interface TimeSlotsViewProps {
   data: {
-    slots?: Array<{
-      day: string;
-      date: string;
-      start: string;
-      end: string;
-      duration_minutes: number;
-      quality: 'high' | 'medium';
-    }>;
-    recommended?: any;
+    slots?: Slot[];
+    recommended?: Slot;
     activity?: string;
     goal?: string;
   };
 }
 
 export default function TimeSlotsView({ data }: TimeSlotsViewProps) {
-  const { userId, accessToken, applyMutation } = useDashboard();
+  const { userId, accessToken, applyMutation, setViewData } = useDashboard();
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [successId, setSuccessId] = useState<string | null>(null);
 
   const slots = data.slots || [];
   const recommended = data.recommended;
 
-  const handleLockSlot = async (slot: any, id: string) => {
+  const handleLockSlot = async (slot: Slot, id: string) => {
     if (successId === id) return;
     setLoadingId(id);
     try {

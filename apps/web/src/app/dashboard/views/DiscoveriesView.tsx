@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, MapPin, Calendar, ExternalLink, Plus, Search } from 'lucide-react';
+import { Sparkles, MapPin, Calendar, ExternalLink, Plus, Search, Users } from 'lucide-react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 
 interface EventDiscovery {
@@ -57,10 +58,11 @@ export default function DiscoveriesView({ data }: DiscoveriesViewProps) {
           >
             {event.image && (
               <div className="relative h-48 overflow-hidden">
-                <img 
+                <Image 
                   src={event.image} 
                   alt={event.title} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute top-4 right-4 px-3 py-1 bg-black/50 backdrop-blur-md rounded-full text-[9px] font-black text-white uppercase tracking-widest border border-white/20">
                   {event.source}
@@ -69,6 +71,19 @@ export default function DiscoveriesView({ data }: DiscoveriesViewProps) {
             )}
             
             <div className="p-6">
+              <div className="flex items-center justify-between mb-2">
+                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest border ${
+                  event.source.toLowerCase() === 'meetup' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
+                  event.source.toLowerCase() === 'luma' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
+                  'bg-indigo-500/10 text-indigo-500 border-indigo-500/20'
+                }`}>
+                  {event.source.toLowerCase() === 'meetup' ? <Users className="w-2.5 h-2.5" /> : 
+                   event.source.toLowerCase() === 'luma' ? <Calendar className="w-2.5 h-2.5" /> : 
+                   <Sparkles className="w-2.5 h-2.5" />}
+                  {event.source}
+                </div>
+              </div>
+              
               <div className="flex items-start justify-between mb-3 gap-4">
                 <h3 className="font-black text-[var(--header-text)] italic leading-tight group-hover:text-emerald-500 transition-colors uppercase tracking-tight">
                   {event.title}

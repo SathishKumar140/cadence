@@ -1,6 +1,15 @@
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import DashboardClientWrapper from './DashboardClientWrapper';
+import { 
+  DashboardInsights, 
+  WeeklyPlanItem, 
+  Routine, 
+  Goal, 
+  ScheduledEmail, 
+  TopicListener, 
+  PendingAction 
+} from './DashboardContext';
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -14,21 +23,20 @@ export default async function DashboardPage() {
   }
 
   const accessToken = session.provider_token || '';
-  let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-  if (apiUrl && !apiUrl.startsWith('http')) {
-    apiUrl = `https://${apiUrl}`;
-  }
+  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '').startsWith('http') 
+    ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+    : `https://${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '')}`;
 
   // 1. Fetch Core Dashboard Data
-  let data = {
-    insights: { optimization_score: 75, insight_cards: [] },
-    weekly_plan: [],
+  const data = {
+    insights: { optimization_score: 75, insight_cards: [] } as DashboardInsights,
+    weekly_plan: [] as WeeklyPlanItem[],
     calendar_timezone: 'UTC',
-    routines: [],
-    activeGoals: [],
-    emails: [],
-    listeners: [],
-    pendingActions: []
+    routines: [] as Routine[],
+    activeGoals: [] as Goal[],
+    emails: [] as ScheduledEmail[],
+    listeners: [] as TopicListener[],
+    pendingActions: [] as PendingAction[]
   };
 
   let preferences = {
@@ -80,13 +88,15 @@ export default async function DashboardPage() {
   return (
     <DashboardClientWrapper 
         userId={user.id} 
+        user={{ 
+          email: user.email, 
+          full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Strategic Partner',
+          avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture
+        }}
         initialData={data}
         initialSettings={settings} 
         initialAccessToken={accessToken}
         hasPreferences={hasPreferences}
-    >
-        {/* Children are now handled inside DashboardClientWrapper via DynamicViewCanvas */}
-        <div />
-    </DashboardClientWrapper>
+    />
   )
 }

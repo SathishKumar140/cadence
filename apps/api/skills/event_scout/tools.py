@@ -12,10 +12,10 @@ def _get_user_id():
 
 
 @tool
-async def scout_events(query: str, location: str = None) -> str:
+async def scout_local_events(query: str, location: str = None) -> str:
     """
-    Search for real-world events (Eventbrite, Luma, Meetup, etc.) based on a topic and location.
-    If location is not provided, uses the user's profile location or calendar-inferred city.
+    Search for PHYSICAL real-world meetings and events (Meetup, Eventbrite, Luma) in a SPECIFIC CITY.
+    Requires a location (city). Use this only for physical attendence intents like 'find meetups in London'.
     """
     user_id = _get_user_id()
     target_location = location
@@ -72,14 +72,14 @@ async def scout_events(query: str, location: str = None) -> str:
             "status": "success",
             "location_used": target_location,
             "message": f"Found {len(events)} events in {target_location}{source_info}.",
-            "discoveries": events[:4],
+            "discoveries": events[:10],
             "ui_directive": {
                 "view": "discoveries",
-                "data": {"events": events[:4], "location": target_location, "query": query}
+                "data": {"events": events[:10], "location": target_location, "query": query}
             }
         })
 
     return f"No events found in {target_location} for those interests. Try a different city or topic."
 
 
-TOOLS = [scout_events]
+TOOLS = [scout_local_events]

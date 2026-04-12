@@ -124,7 +124,7 @@ async def discovery_agent_node(state: AgentState):
         service = EventDiscoveryService()
         discovered = await service.discover(interests, "San Francisco") # City should be dynamic from profile
         if discovered:
-            return {"discovered_events": discovered[:4]}
+            return {"discovered_events": discovered[:10]}
     except Exception as e:
         print(f"Discovery Service Error: {e}")
 

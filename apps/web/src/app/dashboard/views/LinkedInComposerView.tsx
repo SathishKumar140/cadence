@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { Copy, Check, Send, Sparkles, Wand2, Hash } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 interface LinkedInComposerProps {
   data: {
@@ -15,6 +14,13 @@ interface LinkedInComposerProps {
 export default function LinkedInComposerView({ data }: LinkedInComposerProps) {
   const [draft, setDraft] = useState(data.draft || '');
   const [copied, setCopied] = useState(false);
+
+  // Sync draft from external data (e.g. streaming agent response)
+  React.useEffect(() => {
+    if (data.draft) {
+      setDraft(data.draft);
+    }
+  }, [data.draft]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(draft);

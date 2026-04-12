@@ -20,7 +20,7 @@ export default function GoalsAction({ userId, initialGoals, initialInterests = [
     <>
       <button 
         onClick={() => setIsModalOpen(true)}
-        className="text-sm text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+        className="px-5 py-2.5 bg-[var(--card-bg)] hover:bg-[var(--card-hover-bg)] text-indigo-400 text-xs font-black tracking-tight uppercase rounded-2xl border border-[var(--card-border)] hover:border-indigo-500/30 transition-all duration-300"
       >
         Adjust Goals
       </button>

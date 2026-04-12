@@ -17,11 +17,10 @@ export default function LogoutButton() {
   return (
     <button
       onClick={handleLogout}
-      className="flex items-center gap-2 p-2 sm:px-4 sm:py-2 text-sm font-medium text-[var(--muted-text)] hover:text-[var(--header-text)] transition-colors border border-[var(--card-border)] rounded-full hover:bg-[var(--card-bg)] backdrop-blur-sm"
+      className="flex items-center justify-center p-2 rounded-xl text-[var(--muted-text)] hover:text-rose-500 hover:bg-rose-500/5 transition-all duration-300 group"
       title="Sign Out"
     >
-      <LogOut className="w-4 h-4" />
-      <span className="hidden sm:inline">Sign Out</span>
+      <LogOut className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
     </button>
   );
 }

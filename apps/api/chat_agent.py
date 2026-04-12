@@ -72,8 +72,10 @@ async def run_chat_agent_stream(user_id: str, message: str, db: Session, history
 ### CORE PROTOCOL:
 1. MATCH INTENT: Identify which skill the user needs.
 2. USE TOOLS: Call the appropriate tools for that skill.
-3. EMIT UI: Always call `emit_ui_directive` after tool usage to switch the user's focus to the relevant panel.
-4. BREVITY: Keep text responses short and helpful. Focus on the data shown in the dynamic panels.
+3. PROACTIVE SCOUTING: If the user adds a Topic Listener or asks for updates, always call `scout_for_updates` to fetch real-time data.
+4. SMART NAVIGATION: Only call `emit_ui_directive` if the tool used did NOT already provide a view or if you need to switch context intentionally. If a discovery was just made or listed, ensure the view stays on `discovery_feed`.
+5. BREVITY: Keep text responses short and helpful. Focus on the data shown in the dynamic panels. 
+6. HANDOFF PROTOCOL: If you trigger a view switch (like discovery_feed or linkedin_composer), your text response MUST be limited to a single confirmation sentence. Do NOT list the data in markdown text if it will be visible in the destination view.
 """
 
     messages = [SystemMessage(content=system_prompt)]
@@ -113,7 +115,7 @@ async def run_chat_agent_stream(user_id: str, message: str, db: Session, history
                                     yield {"type": "mutation", "data": res_obj["mutation"]}
                                 if "ui_directive" in res_obj:
                                     yield {"type": "ui_directive", "view": res_obj["ui_directive"]["view"], "data": res_obj["ui_directive"]["data"]}
-                                if "discoveries" in res_obj: # for event scout backward compatibility or direct access
+                                if "discoveries" in res_obj:
                                     yield {"type": "discoveries", "data": res_obj["discoveries"]}
                         except Exception:
                             pass

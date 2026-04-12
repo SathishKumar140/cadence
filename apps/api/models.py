@@ -13,6 +13,8 @@ class User(Base):
     theme = Column(String, default="dark")
     ai_provider = Column(String) # e.g., "openai", "anthropic"
     ai_api_key = Column(String) # Stored plain for this version
+    scouting_frequency = Column(String, default="6h") # 'manual', '2h', '6h', '12h', '24h'
+    last_scout_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -139,6 +141,7 @@ class TopicListener(Base):
     user_id = Column(String, ForeignKey("users.id"))
     topic = Column(String, nullable=False)         # e.g., "AI Features", "Market Trends"
     context_instruction = Column(String)           # specific things to look for
+    scouting_frequency = Column(String, default="6h") # '10m', '30m', '1h', '2h', '6h', '12h', '24h', 'manual'
     is_active = Column(Boolean, default=True)
     last_processed = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -159,3 +162,16 @@ class PendingAction(Base):
     metadata_json = Column(JSON, nullable=True)    # extra data (e.g., event details)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class KnowledgeItem(Base):
+    """A stored insight or discovery saved to the digital brain."""
+    __tablename__ = "knowledge_items"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"))
+    title = Column(String, nullable=False)
+    content = Column(String)
+    source_url = Column(String, nullable=True)
+    tags = Column(JSON, nullable=True)
+    relevance_score = Column(Float, default=1.0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

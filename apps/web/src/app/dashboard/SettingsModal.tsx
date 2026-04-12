@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Settings, X, Moon, Sun, Key, Brain, Save, CheckCircle2, Zap } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Settings, X, Moon, Sun, Key, Brain, Save, CheckCircle2, Zap, Share2 } from 'lucide-react';
 
 interface SettingsModalProps {
   userId: string;
@@ -13,24 +13,29 @@ export default function SettingsModal({ userId, isOpen, onClose }: SettingsModal
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [provider, setProvider] = useState('openai');
   const [apiKey, setApiKey] = useState('');
+  const [scoutingFrequency, setScoutingFrequency] = useState('6h');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [integrations, setIntegrations] = useState<Record<string, { name: string } | null>>({});
 
   const fetchSettings = useCallback(async () => {
     try {
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      if (apiUrl && !apiUrl.startsWith('http')) {
-          apiUrl = `https://${apiUrl}`;
-      }
+      if (apiUrl && !apiUrl.startsWith('http')) apiUrl = `https://${apiUrl}`;
+      
       const res = await fetch(`${apiUrl}/api/user/settings?user_id=${userId}`);
       if (res.ok) {
         const data = await res.json();
         setTheme(data.theme || 'dark');
         setProvider(data.ai_provider || 'openai');
         setApiKey(data.ai_api_key || '');
-        
-        // Apply theme immediately to local UI for preview
+        setScoutingFrequency(data.scouting_frequency || '6h');
         document.documentElement.classList.toggle('dark', data.theme === 'dark');
+      }
+
+      const intRes = await fetch(`${apiUrl}/api/integrations/status?user_id=${userId}`);
+      if (intRes.ok) {
+        setIntegrations(await intRes.json());
       }
     } catch (e) {
       console.error("Failed to fetch settings", e);
@@ -56,7 +61,8 @@ export default function SettingsModal({ userId, isOpen, onClose }: SettingsModal
         body: JSON.stringify({
           theme,
           ai_provider: provider,
-          ai_api_key: apiKey
+          ai_api_key: apiKey,
+          scouting_frequency: scoutingFrequency
         })
       });
 
@@ -76,6 +82,29 @@ export default function SettingsModal({ userId, isOpen, onClose }: SettingsModal
       console.error("Failed to save settings", e);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleConnectLinkedIn = async () => {
+    try {
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      if (apiUrl && !apiUrl.startsWith('http')) apiUrl = `https://${apiUrl}`;
+
+      const res = await fetch(`${apiUrl}/api/auth/linkedin?user_id=${userId}`);
+      if (res.ok) {
+        const { url } = await res.json();
+        window.open(url, 'LinkedIn Auth', 'width=600,height=800');
+        
+        const messageHandler = (event: MessageEvent) => {
+          if (event.data.type === 'linkedin_auth_success') {
+            fetchSettings(); // Refresh status
+            window.removeEventListener('message', messageHandler);
+          }
+        };
+        window.addEventListener('message', messageHandler);
+      }
+    } catch (e) {
+      console.error("LinkedIn Connect failed", e);
     }
   };
 
@@ -139,6 +168,45 @@ export default function SettingsModal({ userId, isOpen, onClose }: SettingsModal
             </div>
           </section>
 
+          {/* Proactive Intelligence Section */}
+          <section className="space-y-6">
+            <h3 className="text-[10px] font-black text-indigo-500/60 uppercase tracking-[0.2em] flex items-center gap-2">
+              <Zap className="w-3.5 h-3.5" /> Proactive Intelligence
+            </h3>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-[var(--muted-text)] flex justify-between">
+                  <span>Scouting Frequency</span>
+                  <span className="text-[10px] text-indigo-500 font-bold px-2 py-0.5 rounded-full bg-indigo-500/10">Autonomous Pulse</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'manual', label: 'Manual Only' },
+                    { id: '2h', label: 'High (2h)' },
+                    { id: '6h', label: 'Standard (6h)' },
+                    { id: '24h', label: 'Daily (24h)' },
+                  ].map((freq) => (
+                    <button
+                      key={freq.id}
+                      onClick={() => setScoutingFrequency(freq.id)}
+                      className={`p-3 rounded-xl border text-[11px] font-bold transition-all ${
+                        scoutingFrequency === freq.id
+                          ? 'border-indigo-500 bg-indigo-500/10 text-indigo-500'
+                          : 'border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--muted-text)] hover:border-indigo-500/30'
+                      }`}
+                    >
+                      {freq.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-500 italic px-1 pt-1">
+                  Determines how often Cadence scouts for new trends based on your active listeners.
+                </p>
+              </div>
+            </div>
+          </section>
+
           {/* AI Config Section */}
           <section className="space-y-6">
             <h3 className="text-[10px] font-black text-indigo-500/60 uppercase tracking-[0.2em] flex items-center gap-2">
@@ -182,40 +250,68 @@ export default function SettingsModal({ userId, isOpen, onClose }: SettingsModal
             </div>
           </section>
 
-          {/* Integrations Section */}
-          <section className="space-y-6">
-            <h3 className="text-[10px] font-black text-indigo-500/60 uppercase tracking-[0.2em] flex items-center gap-2">
-              <Zap className="w-3.5 h-3.5" /> Discovery Integrations
-            </h3>
-            
-            <div className="grid grid-cols-1 gap-4">
-               <div className="flex items-center justify-between p-4 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl">
-                  <div className="flex items-center gap-3">
-                     <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500 text-[10px] font-black">EB</div>
-                     <div>
-                        <p className="text-sm font-bold text-[var(--header-text)]">Eventbrite</p>
-                        <p className="text-[10px] text-slate-500">Official REST API</p>
-                     </div>
-                  </div>
-                  <div className="w-10 h-5 bg-emerald-500/20 rounded-full flex items-center px-1">
-                     <div className="w-3 h-3 bg-emerald-500 rounded-full" />
-                  </div>
-               </div>
-               
-               <div className="flex items-center justify-between p-4 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl opacity-60">
-                  <div className="flex items-center gap-3">
-                     <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-500 text-[10px] font-black">MP</div>
-                     <div>
-                        <p className="text-sm font-bold text-[var(--header-text)]">Meetup</p>
-                        <p className="text-[10px] text-slate-500">Public Scraper</p>
-                     </div>
-                  </div>
-                  <div className="w-10 h-5 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center px-1">
-                     <div className="w-3 h-3 bg-slate-400 rounded-full" />
-                  </div>
-               </div>
-            </div>
-          </section>
+           {/* Integrations Section */}
+           <section className="space-y-6">
+             <h3 className="text-[10px] font-black text-indigo-500/60 uppercase tracking-[0.2em] flex items-center gap-2">
+               <Zap className="w-3.5 h-3.5" /> Discovery Integrations
+             </h3>
+             
+             <div className="grid grid-cols-1 gap-4">
+                {/* LinkedIn Integration */}
+                <div className="flex items-center justify-between p-5 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl shadow-sm hover:border-indigo-500/30 transition-all group overflow-hidden relative">
+                   {integrations.linkedin && (
+                      <div className="absolute top-0 right-0 w-12 h-12 bg-emerald-500/5 dark:bg-emerald-500/10 rotate-45 translate-x-6 -translate-y-6" />
+                   )}
+                   <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${integrations.linkedin ? 'bg-blue-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                         <Share2 className="w-6 h-6" />
+                      </div>
+                      <div>
+                         <p className="text-sm font-bold text-[var(--header-text)]">LinkedIn</p>
+                         <p className="text-[10px] text-slate-500">
+                            {integrations.linkedin ? `Connected as ${integrations.linkedin.name}` : 'Post directly to your network'}
+                         </p>
+                      </div>
+                   </div>
+                   <button 
+                      onClick={handleConnectLinkedIn}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                         integrations.linkedin 
+                           ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-rose-500/10 hover:text-rose-500' 
+                           : 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95'
+                      }`}
+                   >
+                      {integrations.linkedin ? 'Reconnect' : 'Connect'}
+                   </button>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl opacity-60">
+                   <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500 text-[10px] font-black">EB</div>
+                      <div>
+                         <p className="text-sm font-bold text-[var(--header-text)]">Eventbrite</p>
+                         <p className="text-[10px] text-slate-500">Official REST API</p>
+                      </div>
+                   </div>
+                   <div className="w-10 h-5 bg-emerald-500/20 rounded-full flex items-center px-1">
+                      <div className="w-3 h-3 bg-emerald-500 rounded-full" />
+                   </div>
+                </div>
+                
+                <div className="flex items-center justify-between p-4 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl opacity-60">
+                   <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-500 text-[10px] font-black">MP</div>
+                      <div>
+                         <p className="text-sm font-bold text-[var(--header-text)]">Meetup</p>
+                         <p className="text-[10px] text-slate-500">Public Scraper</p>
+                      </div>
+                   </div>
+                   <div className="w-10 h-5 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center px-1">
+                      <div className="w-3 h-3 bg-slate-400 rounded-full" />
+                   </div>
+                </div>
+             </div>
+           </section>
         </div>
 
         <div className="p-8 border-t border-[var(--card-border)] bg-[var(--card-bg)]">

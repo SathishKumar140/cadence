@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
-import { Send, Sparkles } from 'lucide-react';
+import { Send, Sparkles, User as UserIcon, Settings } from 'lucide-react';
 import AgentMessage from './AgentMessage';
 import { useDashboard, WeeklyPlanItem, DashboardMutation } from './DashboardContext';
+import LogoutButton from './LogoutButton';
 
 interface AgentChatPanelProps {
   isOpen: boolean;
   userId: string;
+  user: { email: string | undefined; full_name: string; avatar_url?: string };
 }
 
 export interface ChatMessage {
@@ -17,9 +19,11 @@ export interface ChatMessage {
   thinkingSteps?: string[];
   mutations?: DashboardMutation[];
   discoveries?: WeeklyPlanItem[];
+  promotion?: { topic: string; target: string };
+  uiDirective?: { view: string; data?: Record<string, unknown> };
 }
 
-export default function AgentChatPanel({ isOpen, userId }: AgentChatPanelProps) {
+export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -28,20 +32,19 @@ export default function AgentChatPanel({ isOpen, userId }: AgentChatPanelProps) 
   const [currentMutations, setCurrentMutations] = useState<DashboardMutation[]>([]);
   const [currentDiscoveries, setCurrentDiscoveries] = useState<WeeklyPlanItem[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
-    const { applyMutation, setActiveView, setViewData } = useDashboard();
+  const { applyMutation, setActiveView, setViewData, onOpenSettings, activeView } = useDashboard();
 
-  useEffect(() => {
-    if (chatEndRef.current) {
-        chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, currentResponse, currentThinkingSteps]);
-
-  const handleSend = async (e?: React.FormEvent) => {
+  const handleSend = useCallback(async (e?: React.FormEvent, overridePrompt?: string, promotionMetadata?: { topic: string; target: string }) => {
     if (e) e.preventDefault();
-    if (!input.trim() || isStreaming) return;
-    const userMsg: ChatMessage = { role: 'user', content: input };
+    const userPrompt = overridePrompt || input;
+    if (!userPrompt.trim() || isStreaming) return;
+    
+    const userMsg: ChatMessage = { 
+      role: 'user', 
+      content: userPrompt,
+      promotion: promotionMetadata
+    };
     setMessages(prev => [...prev, userMsg]);
-    const userPrompt = input;
     setInput('');
     setIsStreaming(true);
     setCurrentResponse('');
@@ -52,6 +55,7 @@ export default function AgentChatPanel({ isOpen, userId }: AgentChatPanelProps) 
     let accumulatedThinkingSteps: string[] = [];
     let accumulatedMutations: DashboardMutation[] = [];
     let accumulatedDiscoveries: WeeklyPlanItem[] = [];
+    let accumulatedUiDirective: { view: string; data?: Record<string, unknown> } | undefined = undefined;
     try {
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       if (apiUrl && !apiUrl.startsWith('http')) apiUrl = `https://${apiUrl}`;
@@ -77,6 +81,12 @@ export default function AgentChatPanel({ isOpen, userId }: AgentChatPanelProps) 
               if (event.type === 'response') {
                 accumulatedResponse += event.content;
                 setCurrentResponse(accumulatedResponse);
+                
+                // If we are currently in the LinkedIn Composer view, sync the draft live
+                // Use a functional update logic or check current state
+                if (accumulatedUiDirective?.view === 'linkedin_composer' || activeView === 'linkedin_composer') {
+                   setViewData((prev: Record<string, unknown> | null) => ({ ...prev, draft: accumulatedResponse }));
+                }
               } else if (event.type === 'thinking') {
                 if (!accumulatedThinkingSteps.includes(event.content)) {
                   accumulatedThinkingSteps = [...accumulatedThinkingSteps, event.content];
@@ -87,8 +97,7 @@ export default function AgentChatPanel({ isOpen, userId }: AgentChatPanelProps) 
                 accumulatedMutations = [...accumulatedMutations, event.data];
                 setCurrentMutations(accumulatedMutations);
               } else if (event.type === 'ui_directive') {
-                // Prevent flicker: only update if the view is changing or if the data is significantly different
-                // In a production app, we'd use a deep compare here.
+                accumulatedUiDirective = { view: event.view, data: event.data };
                 setActiveView(event.view);
                 setViewData(event.data);
               } else if (event.type === 'discoveries') {
@@ -106,7 +115,8 @@ export default function AgentChatPanel({ isOpen, userId }: AgentChatPanelProps) 
         content: accumulatedResponse,
         thinkingSteps: accumulatedThinkingSteps,
         mutations: accumulatedMutations,
-        discoveries: accumulatedDiscoveries
+        discoveries: accumulatedDiscoveries,
+        uiDirective: accumulatedUiDirective
       }]);
       setCurrentResponse('');
       setCurrentThinkingSteps([]);
@@ -117,7 +127,36 @@ export default function AgentChatPanel({ isOpen, userId }: AgentChatPanelProps) 
     } finally {
       setIsStreaming(false);
     }
-  };
+  }, [input, isStreaming, userId, activeView, setActiveView, setViewData, applyMutation]);
+
+  // Listen for skill handoffs
+  useEffect(() => {
+    const handleLinkedInPromote = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      const { topic, context, reasoning } = detail;
+      const prompt = `I want to promote a discovery to LinkedIn. 
+Topic: ${topic}
+Context: ${context}
+AI Reasoning: ${reasoning}
+
+Please draft a high-impact LinkedIn post about this for my network. Start a thought leadership draft.`;
+      
+      // Proactively switch view so the user sees the workspace being prepared
+      setActiveView('linkedin_composer');
+      setViewData({ topic, context, reasoning });
+      
+      handleSend(undefined, prompt, { topic, target: 'LinkedIn' });
+    };
+
+    window.addEventListener('cadence:promote_to_linkedin', handleLinkedInPromote);
+    return () => window.removeEventListener('cadence:promote_to_linkedin', handleLinkedInPromote);
+  }, [setActiveView, setViewData, handleSend]);
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+        chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, currentResponse, currentThinkingSteps]);
 
   return (
     <div className={`h-full bg-[var(--background)] lg:border-r border-[var(--card-border)] flex flex-col relative transition-all duration-500 overflow-hidden ${
@@ -135,6 +174,32 @@ export default function AgentChatPanel({ isOpen, userId }: AgentChatPanelProps) 
             priority
           />
           <h2 className="text-[11px] font-black text-[var(--header-text)] uppercase tracking-[0.4em] opacity-60">Cadence AI</h2>
+        </div>
+        
+        <div className="flex items-center gap-4">
+           {/* User Profile minimalist view */}
+           <div className="hidden sm:flex items-center gap-3 pr-2 border-r border-[var(--card-border)]">
+              <div className="flex flex-col items-end min-w-0">
+                 <span className="text-[10px] font-black text-[var(--header-text)] italic leading-none truncate max-w-[100px]">{user.full_name}</span>
+              </div>
+              <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center border border-indigo-500/20 shadow-sm shadow-indigo-500/5 bg-indigo-500/10 relative">
+                 {user.avatar_url ? (
+                    <Image src={user.avatar_url} alt={user.full_name} fill className="object-cover" />
+                 ) : (
+                    <UserIcon className="w-4 h-4 text-indigo-500" />
+                 )}
+              </div>
+           </div>
+           
+           <button 
+             onClick={onOpenSettings}
+             className="p-2 text-[var(--muted-text)] hover:text-indigo-500 transition-colors group"
+             title="System Settings"
+           >
+             <Settings className="w-4 h-4 group-hover:rotate-90 transition-transform duration-500" />
+           </button>
+           
+           <LogoutButton />
         </div>
       </div>
 

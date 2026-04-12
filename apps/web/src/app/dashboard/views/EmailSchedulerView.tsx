@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Mail, Clock, Send, Calendar, XCircle, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Mail, Clock, Send, Calendar, XCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface ScheduledEmail {
@@ -86,7 +86,7 @@ export default function EmailSchedulerView({ data }: EmailSchedulerProps) {
           <div className="p-16 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl flex flex-col items-center justify-center text-center">
             <Clock className="w-12 h-12 text-slate-300 dark:text-slate-700 mb-6" />
             <p className="text-slate-500 font-bold italic mb-2">The outbox is silent.</p>
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest">Ask: "Remind me next Monday at 8am to check my targets"</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest">Ask: &quot;Remind me next Monday at 8am to check my targets&quot;</p>
           </div>
         )}
       </div>
@@ -112,7 +112,7 @@ export default function EmailSchedulerView({ data }: EmailSchedulerProps) {
   );
 }
 
-function ChevronRight(props: any) {
+function ChevronRight(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}

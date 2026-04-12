@@ -116,7 +116,7 @@ export default function RoutineDashboardView({ data }: RoutineDashboardProps) {
           <div className="p-16 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl flex flex-col items-center justify-center text-center">
             <Repeat className="w-12 h-12 text-slate-300 dark:text-slate-700 mb-6" />
             <p className="text-slate-500 font-bold italic mb-2">Your routine matrix is void.</p>
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest">Ask me: "Start a morning routine" to begin</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest">Ask me: &quot;Start a morning routine&quot; to begin</p>
           </div>
         )}
       </div>

@@ -6,6 +6,8 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import func
 from typing import Dict, Any, List, Optional
 import uuid
+import json
+import asyncio
 import httpx
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -55,6 +57,7 @@ def health_check():
 from agents import run_full_agent
 from chat_agent import run_chat_agent_stream
 from integrations import EventDiscoveryService
+from integrations.linkedin import LinkedInClient
 
 # Pydantic Models
 class ChatRequest(BaseModel):
@@ -71,6 +74,16 @@ class PreferenceUpdate(BaseModel):
     interests: List[str] = []
     location: Optional[Dict[str, Any]] = None
 
+class RoutineActionRequest(BaseModel):
+    user_id: str
+    routine_id: str
+
+class SocialPostRequest(BaseModel):
+    user_id: str
+    content: str
+    title: str
+    action_id: str
+
 class AddEventRequest(BaseModel):
     user_id: str
     item_id: str
@@ -84,6 +97,7 @@ class UserSettingsUpdate(BaseModel):
     theme: str = "dark"
     ai_provider: str = "openai"
     ai_api_key: str = ""
+    scouting_frequency: str = "6h"
 
 class AlternateRequest(BaseModel):
     user_id: str
@@ -122,10 +136,22 @@ class ListenerCreate(BaseModel):
     user_id: str
     topic: str
     context_instruction: Optional[str] = None
+    scouting_frequency: Optional[str] = "6h"
+
+class ListenerFrequencyUpdate(BaseModel):
+    user_id: str
+    frequency: str
 
 class ActionResolve(BaseModel):
     user_id: str
     resolution: str  # 'dismissed', 'promoted', 'completed'
+
+class KnowledgeSave(BaseModel):
+    user_id: str
+    title: str
+    content: str
+    source_url: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 # Helper Functions
 def get_next_weekday(day_str: str, time_str: str, user_tz: str = "UTC"):
@@ -448,11 +474,12 @@ async def unsync_calendar_event(user_id: str, item_id: str, access_token: str, d
 def get_user_settings(user_id: str, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
-        return {"theme": "dark", "ai_provider": "openai", "ai_api_key": ""}
+        return {"theme": "dark", "ai_provider": "openai", "ai_api_key": "", "scouting_frequency": "6h"}
     return {
         "theme": user.theme or "dark",
         "ai_provider": user.ai_provider or "openai",
-        "ai_api_key": user.ai_api_key or ""
+        "ai_api_key": user.ai_api_key or "",
+        "scouting_frequency": user.scouting_frequency or "6h"
     }
 
 @app.put("/api/user/settings")
@@ -460,12 +487,20 @@ def update_user_settings(user_id: str, req: UserSettingsUpdate, db: Session = De
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         # Create user if doesn't exist (though normally handled in sync)
-        user = models.User(id=user_id, email=f"{user_id}@example.com", theme=req.theme, ai_provider=req.ai_provider, ai_api_key=req.ai_api_key)
+        user = models.User(
+            id=user_id, 
+            email=f"{user_id}@example.com", 
+            theme=req.theme, 
+            ai_provider=req.ai_provider, 
+            ai_api_key=req.ai_api_key,
+            scouting_frequency=req.scouting_frequency
+        )
         db.add(user)
     else:
         user.theme = req.theme
         user.ai_provider = req.ai_provider
         user.ai_api_key = req.ai_api_key
+        user.scouting_frequency = req.scouting_frequency
     db.commit()
     # Invalidate dashboard cache on settings update
     db.query(models.DashboardCache).filter(models.DashboardCache.user_id == user_id).delete()
@@ -730,6 +765,160 @@ def create_listener(req: ListenerCreate, db: Session = Depends(get_db)):
     db.commit()
     return listener
 
+@app.patch("/api/listeners/{listener_id}/toggle")
+def toggle_listener(listener_id: str, user_id: str, db: Session = Depends(get_db)):
+    listener = db.query(models.TopicListener).filter(
+        models.TopicListener.id == listener_id,
+        models.TopicListener.user_id == user_id
+    ).first()
+    if not listener:
+        raise HTTPException(status_code=404, detail="Listener not found")
+    listener.is_active = not listener.is_active
+    db.commit()
+    return listener
+
+@app.patch("/api/listeners/{listener_id}/frequency")
+def update_listener_frequency(listener_id: str, req: ListenerFrequencyUpdate, db: Session = Depends(get_db)):
+    listener = db.query(models.TopicListener).filter(
+        models.TopicListener.id == listener_id,
+        models.TopicListener.user_id == req.user_id
+    ).first()
+    if not listener:
+        raise HTTPException(status_code=404, detail="Listener not found")
+    listener.scouting_frequency = req.frequency
+    db.commit()
+    return listener
+
+@app.post("/api/listeners/{listener_id}/scout")
+async def manual_scout_listener(listener_id: str, user_id: str, db: Session = Depends(get_db)):
+    listener = db.query(models.TopicListener).filter(
+        models.TopicListener.id == listener_id,
+        models.TopicListener.user_id == user_id
+    ).first()
+    if not listener:
+        raise HTTPException(status_code=404, detail="Listener not found")
+    
+    from skills.cognitive_listener.tools import _scout_for_updates_internal
+    import json
+    
+    # Internal helper runs synchronously but handles its own loops
+    result_str = _scout_for_updates_internal(topic=listener.topic, user_id=user_id)
+    result = json.loads(result_str)
+    
+    # Update last_processed
+    listener.last_processed = datetime.now()
+    db.commit()
+    
+    return result
+
+@app.delete("/api/listeners/{listener_id}")
+def delete_listener(listener_id: str, user_id: str, db: Session = Depends(get_db)):
+    listener = db.query(models.TopicListener).filter(
+        models.TopicListener.id == listener_id,
+        models.TopicListener.user_id == user_id
+    ).first()
+    if not listener:
+        raise HTTPException(status_code=404, detail="Listener not found")
+    db.delete(listener)
+    db.commit()
+    return {"status": "success"}
+
+# --- Social Integrations & Auth ---
+
+@app.get("/api/auth/linkedin")
+async def linkedin_auth_start(user_id: str):
+    client = LinkedInClient()
+    return {"url": client.get_authorization_url(state=user_id)}
+
+@app.get("/api/auth/linkedin/callback")
+async def linkedin_auth_callback(code: str, state: str, db: Session = Depends(get_db)):
+    # state is user_id
+    user_id = state
+    client = LinkedInClient()
+    try:
+        token_data = await client.get_access_token(code)
+        user_info = await client.get_user_info(token_data["access_token"])
+        
+        author_urn = f"urn:li:person:{user_info['sub']}"
+        
+        # Save or update integration
+        integration = db.query(models.Integration).filter(
+            models.Integration.user_id == user_id,
+            models.Integration.provider == "linkedin"
+        ).first()
+        
+        if not integration:
+            integration = models.Integration(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                provider="linkedin"
+            )
+            db.add(integration)
+            
+        integration.access_token = token_data["access_token"]
+        integration.refresh_token = token_data.get("refresh_token")
+        integration.config = {
+            "urn": author_urn,
+            "name": f"{user_info.get('given_name', '')} {user_info.get('family_name', '')}".strip() or user_info.get('name'),
+            "email": user_info.get("email")
+        }
+        db.commit()
+        
+        # Return a simple HTML page that closes the popup
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content="""
+            <html>
+                <body>
+                    <script>
+                        window.opener.postMessage({ type: 'linkedin_auth_success' }, '*');
+                        window.close();
+                    </script>
+                    <p>LinkedIn connected successfully. You can close this window.</p>
+                </body>
+            </html>
+        """)
+    except Exception as e:
+        print(f"LinkedIn Auth Error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"LinkedIn authentication failed: {str(e)}")
+
+@app.get("/api/integrations/status")
+async def get_integrations_status(user_id: str, db: Session = Depends(get_db)):
+    integrations = db.query(models.Integration).filter(models.Integration.user_id == user_id).all()
+    return {i.provider: {"enabled": i.enabled, "name": i.config.get("name") if i.config else None} for i in integrations}
+
+@app.post("/api/social/linkedin/post")
+async def linkedin_direct_post(req: SocialPostRequest, db: Session = Depends(get_db)):
+    integration = db.query(models.Integration).filter(
+        models.Integration.user_id == req.user_id,
+        models.Integration.provider == "linkedin"
+    ).first()
+    
+    if not integration or not integration.access_token:
+        raise HTTPException(status_code=401, detail="LinkedIn not connected")
+    
+    client = LinkedInClient()
+    try:
+        author_urn = integration.config.get("urn")
+        if not author_urn:
+            user_info = await client.get_user_info(integration.access_token)
+            author_urn = f"urn:li:person:{user_info['sub']}"
+            integration.config["urn"] = author_urn
+            flag_modified(integration, "config")
+            db.commit()
+            
+        result = await client.create_post(integration.access_token, author_urn, req.content)
+        
+        # Mark action as promoted if it exists
+        action = db.query(models.PendingAction).filter(models.PendingAction.id == req.action_id).first()
+        if action:
+            action.status = "promoted"
+            db.commit()
+            
+        return {"status": "success", "result": result}
+    except Exception as e:
+        print(f"LinkedIn Post Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to post to LinkedIn: {str(e)}")
+
 @app.get("/api/actions/pending")
 def get_pending_actions(user_id: str, db: Session = Depends(get_db)):
     return db.query(models.PendingAction).filter(
@@ -762,6 +951,98 @@ async def discover_events(user_id: str, db: Session = Depends(get_db)):
     events = await service.discover(interests, location)
     return events
 
+# Digital Brain / Knowledge Hub
+@app.get("/api/knowledge")
+def get_knowledge(user_id: str, db: Session = Depends(get_db)):
+    return db.query(models.KnowledgeItem).filter(models.KnowledgeItem.user_id == user_id).order_by(models.KnowledgeItem.created_at.desc()).all()
+
+@app.post("/api/knowledge")
+def save_knowledge(req: KnowledgeSave, db: Session = Depends(get_db)):
+    item = models.KnowledgeItem(
+        id=str(uuid.uuid4()),
+        user_id=req.user_id,
+        title=req.title,
+        content=req.content,
+        source_url=req.source_url,
+        tags=req.tags
+    )
+    db.add(item)
+    db.commit()
+    return item
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Cadence API!"}
+
+# --- Autonomous Intelligence Pulse ---
+
+async def autonomous_scouting_pulse():
+    """Background task that runs periodically to pulse all listeners according to their specific frequencies."""
+    print("Intelligence Pulse: Initialized background scheduler (Per-Listener mode).")
+    while True:
+        try:
+            # Check every 5 minutes (300s) for better precision with fast pulses
+            await asyncio.sleep(300)
+            
+            from skills.cognitive_listener.tools import _scout_for_updates_internal
+            from database import SessionLocal
+            
+            with SessionLocal() as db:
+                now = datetime.now()
+                # Find active listeners that are not 'manual'
+                listeners = db.query(models.TopicListener).filter(
+                    models.TopicListener.is_active == True,
+                    models.TopicListener.scouting_frequency != 'manual'
+                ).all()
+                
+                for listener in listeners:
+                    freq = listener.scouting_frequency or '6h'
+                    
+                    # Parse frequency (e.g., '10m', '6h', '1d')
+                    is_due = False
+                    try:
+                        unit = freq[-1].lower()
+                        value = int(freq[:-1])
+                        
+                        last_processed = listener.last_processed
+                        if not last_processed:
+                            is_due = True
+                        else:
+                            # Normalize offset-naive/aware if needed
+                            if last_processed.tzinfo is None:
+                                last_processed = last_processed.replace(tzinfo=None)
+                                check_now = now.replace(tzinfo=None)
+                            else:
+                                check_now = now.astimezone(last_processed.tzinfo)
+                            
+                            if unit == 'm':
+                                if check_now - last_processed >= timedelta(minutes=value):
+                                    is_due = True
+                            elif unit == 'h':
+                                if check_now - last_processed >= timedelta(hours=value):
+                                    is_due = True
+                            elif unit == 'd':
+                                if check_now - last_processed >= timedelta(days=value):
+                                    is_due = True
+                    except Exception as parse_err:
+                        print(f"Intelligence Pulse: Failed to parse frequency '{freq}' for listener {listener.id}: {parse_err}")
+                        is_due = False
+                    
+                    if is_due:
+                        print(f"Intelligence Pulse: Scouting for topic '{listener.topic}' (ID: {listener.id}, Freq: {freq})")
+                        try:
+                            # Pass user_id and specific topic to the scouting tool
+                            _scout_for_updates_internal(topic=listener.topic, user_id=listener.user_id) 
+                            listener.last_processed = now
+                            db.commit()
+                        except Exception as scout_err:
+                            print(f"Intelligence Pulse Error for listener {listener.topic}: {scout_err}")
+                
+        except Exception as e:
+            print(f"Intelligence Pulse: Scheduler loop error: {e}")
+            await asyncio.sleep(60) # Back off on error
+
+@app.on_event("startup")
+async def startup_event():
+    # Start the background pulse
+    asyncio.create_task(autonomous_scouting_pulse())

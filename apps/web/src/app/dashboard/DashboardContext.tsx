@@ -18,9 +18,10 @@ export interface WeeklyPlanItem {
 export interface DashboardInsights {
   optimization_score?: number;
   insight_cards?: {
-    type: string;
+    title: string;
     description: string;
-    impact: string;
+    score_type: 'productivity' | 'wellness' | 'social' | 'learning' | 'focus';
+    impact: number;
   }[];
 }
 
@@ -31,7 +32,7 @@ export interface DashboardGoals {
 }
 
 export interface DashboardMutation {
-  target: 'weekly_plan' | 'goals' | 'insights' | 'routines' | 'emails' | 'listeners' | 'actions';
+  target: 'weekly_plan' | 'goals' | 'insights' | 'routines' | 'emails' | 'listeners' | 'actions' | 'knowledge';
   action: 'add' | 'remove' | 'update' | 'replace';
   data: unknown; 
 }
@@ -72,6 +73,7 @@ export interface TopicListener {
   topic: string;
   context_instruction: string;
   is_active: boolean;
+  scouting_frequency: string;
 }
 
 export interface PendingAction {
@@ -84,6 +86,15 @@ export interface PendingAction {
   created_at: string;
 }
 
+export interface KnowledgeItem {
+  id: string;
+  title: string;
+  content: string;
+  source_url: string | null;
+  tags: string[] | null;
+  created_at: string;
+}
+
 export interface DashboardState {
   userId: string;
   accessToken: string;
@@ -91,23 +102,28 @@ export interface DashboardState {
   insights: DashboardInsights;
   goals: DashboardGoals; // Keeping for compatibility
   activeView: string;
-  viewData: any;
+  viewData: Record<string, unknown> | null;
   routines: Routine[];
   activeGoals: Goal[];
   emails: ScheduledEmail[];
   listeners: TopicListener[];
   pendingActions: PendingAction[];
+  knowledgeItems: KnowledgeItem[];
+  reviewFilters: { topic: string | null };
+  onOpenSettings?: () => void;
   applyMutation: (mutation: DashboardMutation) => void;
   setPlan: (plan: WeeklyPlanItem[]) => void;
   setInsights: (insights: DashboardInsights) => void;
   setGoals: (goals: DashboardGoals) => void;
   setActiveView: (view: string) => void;
-  setViewData: (data: any) => void;
+  setViewData: (data: (Record<string, unknown> | null) | ((prev: Record<string, unknown> | null) => Record<string, unknown> | null)) => void;
   setRoutines: (routines: Routine[]) => void;
   setActiveGoals: (goals: Goal[]) => void;
   setEmails: (emails: ScheduledEmail[]) => void;
   setListeners: (listeners: TopicListener[]) => void;
   setPendingActions: (actions: PendingAction[]) => void;
+  setKnowledgeItems: (items: KnowledgeItem[]) => void;
+  setReviewFilters: (filters: { topic: string | null }) => void;
 }
 
 const DashboardContext = createContext<DashboardState | undefined>(undefined);

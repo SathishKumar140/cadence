@@ -11,6 +11,7 @@ import EmailSchedulerView from './views/EmailSchedulerView';
 import GoalEditorView from './views/GoalEditorView';
 import DiscoveriesView from './views/DiscoveriesView';
 import ReviewCenterView from './views/ReviewCenterView';
+import KnowledgeHubView from './views/KnowledgeHubView';
 
 export default function DynamicViewCanvas() {
   const { activeView, viewData } = useDashboard();
@@ -31,8 +32,10 @@ export default function DynamicViewCanvas() {
         return <GoalEditorView data={viewData || {}} />;
       case 'discoveries':
         return <DiscoveriesView data={viewData || {}} />;
-      case 'review_center':
+      case 'discovery_feed':
         return <ReviewCenterView data={viewData || {}} />;
+      case 'knowledge_hub':
+        return <KnowledgeHubView />;
       default:
         return <ScheduleView />;
     }

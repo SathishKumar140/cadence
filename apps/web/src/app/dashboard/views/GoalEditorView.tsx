@@ -18,7 +18,7 @@ interface Goal {
 interface GoalEditorProps {
   data: {
     goals?: Goal[];
-    suggestions?: any[];
+    suggestions?: { title: string; why: string }[];
     action?: string;
     goal_id?: string;
   };
@@ -106,7 +106,7 @@ export default function GoalEditorView({ data }: GoalEditorProps) {
           <div className="col-span-full p-20 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-[3rem] flex flex-col items-center justify-center text-center">
             <Target className="w-12 h-12 text-slate-300 dark:text-slate-700 mb-6" />
             <p className="text-slate-500 font-bold italic mb-2">Zero objectives detected.</p>
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest">Type: "I want to read 2 books this month"</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest">Type: &quot;I want to read 2 books this month&quot;</p>
           </div>
         )}
       </div>
