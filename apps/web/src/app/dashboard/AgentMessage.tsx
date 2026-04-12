@@ -1,7 +1,6 @@
 'use client';
 
-import { Brain, MapPin, ExternalLink, Zap } from 'lucide-react';
-
+import { Brain, MapPin, ExternalLink, Zap, Calendar, Users, Sparkles } from 'lucide-react';
 import { CheckCircle2 } from 'lucide-react';
 import { DashboardMutation, WeeklyPlanItem } from './DashboardContext';
 
@@ -82,36 +81,41 @@ export default function AgentMessage({ role, content, thinking, thinkingSteps, m
 
       {discoveries && discoveries.length > 0 && (
         <div className="mt-4 grid grid-cols-1 gap-3 w-full">
-          {discoveries.map((disco, idx) => (
-            <a 
-              key={idx} 
-              href={disco.url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-start gap-4 p-4 bg-[var(--background)] hover:bg-slate-50 dark:hover:bg-slate-900 border border-[var(--card-border)] rounded-3xl transition-all hover:scale-[1.01] hover:shadow-lg group/disco"
-            >
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all group-hover/disco:rotate-3 ${
-                disco.discovery_source === 'eventbrite' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
-                disco.discovery_source === 'meetup' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
-                'bg-indigo-500/10 text-indigo-500 border-indigo-500/20'
-              }`}>
-                <span className="text-[10px] font-black uppercase text-center leading-none">
-                  {disco.discovery_source?.substring(0, 2)}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{disco.discovery_source}</span>
-                  <ExternalLink className="w-3 h-3 text-slate-400 opacity-0 group-hover/disco:opacity-100 transition-opacity" />
+          {discoveries.map((disco, idx) => {
+            const source = (disco.discovery_source || (disco as any).source || '').toLowerCase();
+            return (
+              <a 
+                key={idx} 
+                href={disco.url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-start gap-4 p-4 bg-[var(--background)] hover:bg-slate-50 dark:hover:bg-slate-900 border border-[var(--card-border)] rounded-3xl transition-all hover:scale-[1.01] hover:shadow-lg group/disco"
+              >
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all group-hover/disco:rotate-3 ${
+                  source === 'eventbrite' || source === 'luma' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
+                  source === 'meetup' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
+                  'bg-indigo-500/10 text-indigo-500 border-indigo-500/20'
+                }`}>
+                  {source === 'eventbrite' || source === 'luma' ? <Calendar className="w-5 h-5" /> :
+                   source === 'meetup' ? <Users className="w-5 h-5" /> :
+                   <Sparkles className="w-5 h-5" />}
                 </div>
-                <h4 className="text-xs font-bold text-[var(--header-text)] mb-1 line-clamp-1">{disco.title}</h4>
-                <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                  <MapPin className="w-3 h-3" />
-                  <span className="truncate">{disco.location || "TBD"}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                      {source || 'Discovery'}
+                    </span>
+                    <ExternalLink className="w-3 h-3 text-slate-400 opacity-0 group-hover/disco:opacity-100 transition-opacity" />
+                  </div>
+                  <h4 className="text-xs font-bold text-[var(--header-text)] mb-1 line-clamp-1">{disco.title}</h4>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                    <MapPin className="w-3 h-3" />
+                    <span className="truncate">{disco.location || "TBD"}</span>
+                  </div>
                 </div>
-              </div>
-            </a>
-          ))}
+              </a>
+            );
+          })}
         </div>
       )}
     </div>
