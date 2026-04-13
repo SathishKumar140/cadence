@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, MapPin, Calendar, ExternalLink, Plus, Search, Users } from 'lucide-react';
+import { Sparkles, MapPin, Calendar, ExternalLink, Plus, Search, Users, Check } from 'lucide-react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 
@@ -10,9 +10,12 @@ interface EventDiscovery {
   description: string;
   url: string;
   date?: string;
+  end_date?: string;
+  start_time?: string; // Fallback for transition
   location?: string;
   image?: string;
   source: string;
+  is_scheduled?: boolean;
 }
 
 interface DiscoveriesViewProps {
@@ -25,6 +28,44 @@ interface DiscoveriesViewProps {
 
 export default function DiscoveriesView({ data }: DiscoveriesViewProps) {
   const events = data.events || [];
+
+  const formatDate = (dateStr: string | undefined, endDateStr?: string | undefined) => {
+    if (!dateStr) return 'TBA';
+    try {
+      const parseDate = (s: string) => {
+        const d = new Date(s);
+        return isNaN(d.getTime()) ? null : d;
+      };
+
+      const startDate = parseDate(dateStr);
+      if (!startDate) return dateStr + (endDateStr ? ` - ${endDateStr}` : "");
+
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+
+      const startFormatted = formatter.format(startDate);
+      if (!endDateStr) return startFormatted;
+
+      const endDate = parseDate(endDateStr);
+      if (!endDate) return `${startFormatted} - ${endDateStr}`;
+
+      const timeFormatter = new Intl.DateTimeFormat('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+
+      return `${startFormatted} - ${timeFormatter.format(endDate)}`;
+    } catch (e) {
+      return dateStr;
+    }
+  };
 
   return (
     <div className="w-full max-w-4xl mx-auto py-8 sm:py-12 px-4 sm:px-6 relative z-10">
@@ -93,7 +134,7 @@ export default function DiscoveriesView({ data }: DiscoveriesViewProps) {
               <div className="flex flex-col gap-2 mb-6">
                 <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest opacity-70">
                   <Calendar className="w-3.5 h-3.5" />
-                  {event.date || 'TBA'}
+                  {formatDate(event.date || event.start_time, event.end_date)}
                 </div>
                 <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest opacity-70">
                   <MapPin className="w-3.5 h-3.5" />
@@ -101,7 +142,7 @@ export default function DiscoveriesView({ data }: DiscoveriesViewProps) {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                 <a 
                   href={event.url} 
                   target="_blank" 
@@ -111,9 +152,27 @@ export default function DiscoveriesView({ data }: DiscoveriesViewProps) {
                   <ExternalLink className="w-3.5 h-3.5" />
                   View Event
                 </a>
-                <button className="p-3 rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 hover:scale-105 transition-transform">
-                  <Plus className="w-4 h-4" />
-                </button>
+                {event.is_scheduled ? (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest border border-emerald-500/20">
+                    <Check className="w-3 h-3" />
+                    Already Scheduled
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('cadence:add_to_schedule', {
+                        detail: { 
+                          title: event.title, 
+                          date: event.date || event.start_time,
+                          time: event.end_date ? `- ${event.end_date}` : ''
+                        }
+                      }));
+                    }}
+                    className="p-3 rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 hover:scale-105 active:scale-95 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>

@@ -55,7 +55,7 @@ def health_check():
 
 
 from agents import run_full_agent
-from chat_agent import run_chat_agent_stream
+from chat_agent import run_chat_agent_stream, resume_chat_agent_stream
 from integrations import EventDiscoveryService
 from integrations.linkedin import LinkedInClient
 
@@ -64,6 +64,9 @@ class ChatRequest(BaseModel):
     message: str
     user_id: str
     access_token: str = ""
+class AgentResumeRequest(BaseModel):
+    user_id: str
+    action: str
 class SyncRequest(BaseModel):
     access_token: str
     user_id: str
@@ -731,6 +734,31 @@ async def agent_chat_endpoint(req: ChatRequest, db: Session = Depends(get_db)):
     async def event_generator():
         combined_response = ""
         async for event in run_chat_agent_stream(req.user_id, req.message, db, history, provider, api_key):
+            if event["type"] == "response":
+                combined_response += event["content"]
+            yield f"data: {json.dumps(event)}\n\n"
+        
+        # Save assistant response
+        if combined_response:
+            asst_msg = models.AgentChatMessage(id=str(uuid.uuid4()), user_id=req.user_id, role="assistant", content=combined_response)
+            db.add(asst_msg)
+            db.commit()
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.post("/api/agent/resume")
+async def agent_resume_endpoint(req: AgentResumeRequest, db: Session = Depends(get_db)):
+    from fastapi.responses import StreamingResponse
+    import json
+    
+    # Fetch user for settings
+    user = db.query(models.User).filter(models.User.id == req.user_id).first()
+    provider = user.ai_provider if user and user.ai_provider else "openai"
+    api_key = user.ai_api_key if user and user.ai_api_key else None
+
+    async def event_generator():
+        combined_response = ""
+        async for event in resume_chat_agent_stream(req.user_id, req.action, db, provider, api_key):
             if event["type"] == "response":
                 combined_response += event["content"]
             yield f"data: {json.dumps(event)}\n\n"

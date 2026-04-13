@@ -62,7 +62,8 @@ class LumaScraper:
                         events_data.append({
                             "title": title,
                             "description": desc[:200] + "..." if len(desc) > 200 else desc,
-                            "start_time": e_obj.get("start_at", ""),
+                            "date": e_obj.get("start_at", ""),
+                            "end_date": e_obj.get("end_at", ""),
                             "url": f"https://lu.ma/{e_obj.get('url_slug', '')}",
                             "location": e_obj.get("geo_address_json", {}).get("city", location),
                             "source": "luma"

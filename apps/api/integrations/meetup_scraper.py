@@ -58,10 +58,29 @@ class MeetupScraper:
                             if link and not link.startswith('http'):
                                 link = f"https://www.meetup.com{link}"
                             
+                            # Extract date/time from card
+                            date_el = card.select_one('time') or card.select_one('.ds-event-date')
+                            date_str = date_el.text.strip() if date_el else "TBA"
+                            
+                            # If the date_str is a range like "SAT, APR 25, 6:30 PM - 11:30 PM", 
+                            # we'll let the frontend handle the split if possible, but we'll flag it.
+                            end_time_str = ""
+                            if " - " in date_str:
+                                parts = date_str.split(" - ")
+                                date_str = parts[0].strip()
+                                end_time_str = parts[1].strip()
+
+                            # Extract location
+                            loc_el = card.select_one('.ds-event-location') or card.select_one('[class*="location"]')
+                            location_str = loc_el.text.strip() if loc_el else "Singapore"
+
                             events.append({
                                 "title": title,
                                 "description": "Meetup event detected via discovery.",
+                                "date": date_str,
+                                "end_date": end_time_str,
                                 "url": link,
+                                "location": location_str,
                                 "source": "meetup"
                             })
                         except:
@@ -76,8 +95,8 @@ class MeetupScraper:
         return {
             "title": item.get("name", "Meetup Event"),
             "description": item.get("description", ""),
-            "start_time": item.get("startDate"),
-            "end_time": item.get("endDate"),
+            "date": item.get("startDate"), # Normalized to 'date' for frontend
+            "end_date": item.get("endDate"),
             "url": item.get("url"),
             "location": item.get("location", {}).get("name", "Remote/TBD"),
             "source": "meetup"

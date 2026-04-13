@@ -1,34 +1,73 @@
-import json
-import uuid
-from langchain_core.tools import tool
-from database import SessionLocal
-import models
-from sqlalchemy.orm.attributes import flag_modified
+from datetime import datetime, timedelta
 
+def get_next_weekday_date(day_name: str) -> str:
+    """Converts a weekday name to the next occurrence of that date from today."""
+    days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    target_idx = days.index(day_name.lower())
+    now = datetime.now()
+    current_idx = now.weekday()
+    
+    # Calculate days ahead. If target is today but time is passed, or just target is in future
+    days_ahead = target_idx - current_idx
+    if days_ahead < 0:
+        days_ahead += 7
+        
+    target_date = now + timedelta(days=days_ahead)
+    return target_date.strftime("%Y-%m-%d")
 
 @tool
 def get_weekly_plan() -> str:
-    """Fetch the user's current weekly schedule/plan including all item IDs, titles, days, and times."""
+    """Fetch the user's current schedule/plan for the next 4 weeks including item IDs, titles, dates, and times."""
     from skills.schedule_manager._context import CURRENT_USER_ID
     with SessionLocal() as db:
         cached = db.query(models.DashboardCache).filter(
             models.DashboardCache.user_id == CURRENT_USER_ID
         ).first()
         if not cached or not cached.weekly_plan:
-            return "Your weekly plan is currently empty."
-        return json.dumps(cached.weekly_plan)
+            return "Your plan is currently empty."
+        
+        return json.dumps({
+            "status": "success",
+            "items": cached.weekly_plan,
+            "ui_directive": {
+                "view": "all_events",
+                "data": {"items": cached.weekly_plan}
+            }
+        })
 
 
 @tool
-def add_plan_item(title: str, day: str, time: str, reason: str) -> str:
-    """Add a new activity to the user's weekly plan. Day must be a weekday name (Monday-Sunday). Time format: HH:MM-HH:MM."""
+def add_plan_item(title: str, day: str, time: str, reason: str, date: str = None) -> str:
+    """
+    CRITICAL: Add a new activity to the user's plan.
+    Day must be a weekday name (Monday-Sunday). Time format: HH:MM-HH:MM.
+    Date: MANDATORY for multi-week planning. If unknown, the system will calculate it from the day name for the current week.
+    
+    UTILIZE CONTEXT: Check previous tool outputs (like 'scout_local_events') for these details.
+    Always prioritize absolute dates (e.g. 'Apr 14') over relative day names.
+    """
     from skills.schedule_manager._context import CURRENT_USER_ID
     with SessionLocal() as db:
+        # Auto-calculate date if missing
+        final_date = date
+        if not final_date:
+            try:
+                final_date = get_next_weekday_date(day)
+            except Exception:
+                pass
+
         cached = db.query(models.DashboardCache).filter(
             models.DashboardCache.user_id == CURRENT_USER_ID
         ).first()
         new_id = str(uuid.uuid4())
-        new_item = {"id": new_id, "title": title, "day": day, "time": time, "reason": reason}
+        new_item = {
+            "id": new_id, 
+            "title": title, 
+            "day": day, 
+            "time": time, 
+            "reason": reason,
+            "date": final_date
+        }
 
         if not cached:
             cached = models.DashboardCache(

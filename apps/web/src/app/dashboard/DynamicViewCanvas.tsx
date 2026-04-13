@@ -12,6 +12,7 @@ import GoalEditorView from './views/GoalEditorView';
 import DiscoveriesView from './views/DiscoveriesView';
 import ReviewCenterView from './views/ReviewCenterView';
 import KnowledgeHubView from './views/KnowledgeHubView';
+import TacticalTimelineView from './views/TacticalTimelineView';
 
 export default function DynamicViewCanvas() {
   const { activeView, viewData } = useDashboard();
@@ -36,6 +37,8 @@ export default function DynamicViewCanvas() {
         return <ReviewCenterView data={viewData || {}} />;
       case 'knowledge_hub':
         return <KnowledgeHubView />;
+      case 'all_events':
+        return <TacticalTimelineView />;
       default:
         return <ScheduleView />;
     }

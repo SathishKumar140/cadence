@@ -32,7 +32,33 @@ def _scout_for_updates_internal(topic: str = None, user_id: str = None) -> str:
                 ).all()
 
             if not listeners:
-                return "No active listeners found to scout."
+                if topic:
+                    # SMART DISCOVERY: Perform a one-off search even if no listener exists
+                    print(f"[CADENCE] Perform one-off discovery for: {topic}")
+                    trends = await tavily.search_trends(topic)
+                    found_count = 0
+                    for trend in trends:
+                        # Check duplicates
+                        exists = db.query(models.PendingAction).filter(
+                            models.PendingAction.user_id == user_id,
+                            models.PendingAction.source_url == trend["url"]
+                        ).first()
+                        if not exists:
+                            new_action = models.PendingAction(
+                                id=str(uuid.uuid4()),
+                                user_id=user_id,
+                                listener_id=None, # One-off discovery
+                                title=trend["title"],
+                                description=f"[Discovery] {trend['description'][:400]}",
+                                reasoning=f"Found via discovery scan for '{topic}'.",
+                                source_url=trend["url"],
+                                status="pending"
+                            )
+                            db.add(new_action)
+                            found_count += 1
+                    db.commit()
+                    return found_count
+                return 0 # No listeners and no specific topic provided
 
             found_count = 0
             for listener in listeners:
@@ -86,8 +112,9 @@ def _scout_for_updates_internal(topic: str = None, user_id: str = None) -> str:
 @tool
 def scout_for_updates(topic: str = None) -> str:
     """
-    Perform a GLOBAL REAL-TIME web scout for digital updates, news, and features on your monitored topics.
-    Does NOT require a location. Use this for global trends like 'AI frameworks', 'Stock market', or 'Technology news'.
+    Perform a DISCOVERY scouting report for the latest real-time updates and news.
+    USE THIS for one-off information requests. It is 'Safe' and does not need human approval.
+    If 'topic' is provided, it performs a targeted discovery search.
     Found items are flagged for review in the Discovery Feed.
     """
     return _scout_for_updates_internal(topic=topic)
@@ -95,9 +122,10 @@ def scout_for_updates(topic: str = None) -> str:
 @tool
 def add_topic_listener(topic: str, context_instruction: str = None, scouting_frequency: str = "6h") -> str:
     """
-    Subscribe to a specific topic or trend (e.g., 'New AI Features').
-    The assistant will monitor for these items and flag them for review in the Discovery Feed.
-    scouting_frequency: How often to scout (e.g., '10m', '30m', '1h', '6h', '12h', '24h'). Default is '6h'.
+    MUTATING ACTION: Permanently subscribe to a topic for ongoing background monitoring.
+    REQUIRES HUMAN APPROVAL. Use this only when the user wants to 'FOLLOW' or 'TRACK' a topic long-term.
+    Found items are flagged for review in the Discovery Feed.
+    scouting_frequency: (e.g., '1h', '6h', '12h'). Default is '6h'.
     An initial scout is performed immediately.
     """
     user_id = _get_user_id()

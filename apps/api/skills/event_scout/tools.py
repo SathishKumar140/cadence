@@ -68,6 +68,19 @@ async def scout_local_events(query: str, location: str = None) -> str:
     events = await service.discover(interests, target_location)
 
     if events:
+        # Check against existing schedule to filter out already added items
+        with SessionLocal() as db:
+            cache = db.query(models.DashboardCache).filter(
+                models.DashboardCache.user_id == user_id
+            ).first()
+            
+            scheduled_titles = []
+            if cache and cache.weekly_plan:
+                scheduled_titles = [item.get("title", "").lower() for item in cache.weekly_plan]
+            
+            for ev in events:
+                ev["is_scheduled"] = ev.get("title", "").lower() in scheduled_titles
+
         return json.dumps({
             "status": "success",
             "location_used": target_location,

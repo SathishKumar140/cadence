@@ -36,7 +36,7 @@ class TavilyDiscovery:
                     "title": res.get("title", ""),
                     "description": res.get("content", ""),
                     "url": res.get("url", ""),
-                    "start_time": "", # Tavily doesn't have structured dates in the same way
+                    "date": "", # Tavily doesn't have structured dates in the same way
                     "location": location,
                     "source": "web_search"
                 })

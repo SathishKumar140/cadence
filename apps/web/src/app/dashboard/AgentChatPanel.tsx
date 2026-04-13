@@ -16,21 +16,27 @@ interface AgentChatPanelProps {
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  thinkingTitle?: string;
   thinkingSteps?: string[];
   mutations?: DashboardMutation[];
   discoveries?: WeeklyPlanItem[];
   promotion?: { topic: string; target: string };
   uiDirective?: { view: string; data?: Record<string, unknown> };
+  pendingToolCalls?: { id: string; name: string; args: any }[];
+  toolApprovalStatus?: 'pending' | 'approved' | 'rejected';
 }
 
 export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [currentThinkingTitle, setCurrentThinkingTitle] = useState('');
   const [currentThinkingSteps, setCurrentThinkingSteps] = useState<string[]>([]);
   const [currentResponse, setCurrentResponse] = useState('');
   const [currentMutations, setCurrentMutations] = useState<DashboardMutation[]>([]);
   const [currentDiscoveries, setCurrentDiscoveries] = useState<WeeklyPlanItem[]>([]);
+  const [currentUiDirective, setCurrentUiDirective] = useState<{ view: string; data?: Record<string, unknown> } | undefined>(undefined);
+  const [currentPendingToolCalls, setCurrentPendingToolCalls] = useState<{ id: string; name: string; args: any }[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const { applyMutation, setActiveView, setViewData, onOpenSettings, activeView } = useDashboard();
 
@@ -56,6 +62,8 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
     let accumulatedMutations: DashboardMutation[] = [];
     let accumulatedDiscoveries: WeeklyPlanItem[] = [];
     let accumulatedUiDirective: { view: string; data?: Record<string, unknown> } | undefined = undefined;
+    let accumulatedPendingToolCalls: { id: string; name: string; args: any }[] = [];
+    setCurrentPendingToolCalls([]);
     try {
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       if (apiUrl && !apiUrl.startsWith('http')) apiUrl = `https://${apiUrl}`;
@@ -87,6 +95,8 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
                 if (accumulatedUiDirective?.view === 'linkedin_composer' || activeView === 'linkedin_composer') {
                    setViewData((prev: Record<string, unknown> | null) => ({ ...prev, draft: accumulatedResponse }));
                 }
+              } else if (event.type === 'thinking_title') {
+                setCurrentThinkingTitle(event.content);
               } else if (event.type === 'thinking') {
                 if (!accumulatedThinkingSteps.includes(event.content)) {
                   accumulatedThinkingSteps = [...accumulatedThinkingSteps, event.content];
@@ -98,11 +108,15 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
                 setCurrentMutations(accumulatedMutations);
               } else if (event.type === 'ui_directive') {
                 accumulatedUiDirective = { view: event.view, data: event.data };
+                setCurrentUiDirective(accumulatedUiDirective);
                 setActiveView(event.view);
                 setViewData(event.data);
               } else if (event.type === 'discoveries') {
                 accumulatedDiscoveries = [...accumulatedDiscoveries, ...event.data];
                 setCurrentDiscoveries(accumulatedDiscoveries);
+              } else if (event.type === 'approval_required') {
+                accumulatedPendingToolCalls = event.tool_calls;
+                setCurrentPendingToolCalls(accumulatedPendingToolCalls);
               }
             } catch (err) {
               console.error("Error parsing SSE event", err);
@@ -113,21 +127,119 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
       setMessages(prev => [...prev, { 
         role: 'assistant', 
         content: accumulatedResponse,
+        thinkingTitle: currentThinkingTitle,
         thinkingSteps: accumulatedThinkingSteps,
         mutations: accumulatedMutations,
         discoveries: accumulatedDiscoveries,
-        uiDirective: accumulatedUiDirective
+        uiDirective: accumulatedUiDirective,
+        pendingToolCalls: accumulatedPendingToolCalls,
+        toolApprovalStatus: accumulatedPendingToolCalls.length > 0 ? 'pending' : undefined
       }]);
       setCurrentResponse('');
+      setCurrentThinkingTitle('');
       setCurrentThinkingSteps([]);
       setCurrentMutations([]);
       setCurrentDiscoveries([]);
+      setCurrentUiDirective(undefined);
+      setCurrentPendingToolCalls([]);
     } catch (err) {
       console.error("Chat error", err);
     } finally {
       setIsStreaming(false);
     }
   }, [input, isStreaming, userId, activeView, setActiveView, setViewData, applyMutation]);
+
+  const handleResume = useCallback(async (msgIdx: number, action: 'approve' | 'reject') => {
+    if (isStreaming) return;
+    
+    // Optimistically update status
+    const status = action === 'approve' ? 'approved' : 'rejected';
+    setMessages(prev => prev.map((msg, i) => i === msgIdx ? { ...msg, toolApprovalStatus: status } : msg));
+    
+    setIsStreaming(true);
+    let accumulatedResponse = '';
+    let accumulatedThinkingSteps: string[] = [];
+    let accumulatedMutations: DashboardMutation[] = [];
+    let accumulatedDiscoveries: WeeklyPlanItem[] = [];
+    let accumulatedUiDirective: { view: string; data?: Record<string, unknown> } | undefined = undefined;
+    let accumulatedPendingToolCalls: { id: string; name: string; args: any }[] = [];
+    try {
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      if (apiUrl && !apiUrl.startsWith('http')) apiUrl = `https://${apiUrl}`;
+      const response = await fetch(`${apiUrl}/api/agent/resume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, action })
+      });
+      if (!response.body) return;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value);
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event = JSON.parse(line.substring(6));
+              if (event.type === 'response') {
+                accumulatedResponse += event.content;
+                setCurrentResponse(accumulatedResponse);
+              } else if (event.type === 'thinking_title') {
+                setCurrentThinkingTitle(event.content);
+              } else if (event.type === 'thinking') {
+                if (!accumulatedThinkingSteps.includes(event.content)) {
+                  accumulatedThinkingSteps = [...accumulatedThinkingSteps, event.content];
+                  setCurrentThinkingSteps(accumulatedThinkingSteps);
+                }
+              } else if (event.type === 'mutation') {
+                applyMutation(event.data);
+                accumulatedMutations = [...accumulatedMutations, event.data];
+                setCurrentMutations(accumulatedMutations);
+              } else if (event.type === 'ui_directive') {
+                accumulatedUiDirective = { view: event.view, data: event.data };
+                setCurrentUiDirective(accumulatedUiDirective);
+                setActiveView(event.view);
+                setViewData(event.data);
+              } else if (event.type === 'discoveries') {
+                accumulatedDiscoveries = [...accumulatedDiscoveries, ...event.data];
+                setCurrentDiscoveries(accumulatedDiscoveries);
+              } else if (event.type === 'approval_required') {
+                accumulatedPendingToolCalls = event.tool_calls;
+                setCurrentPendingToolCalls(accumulatedPendingToolCalls);
+              }
+            } catch (err) {}
+          }
+        }
+      }
+      // Depending on whether we already had text in the original message, we append a new message for the resumed chunk
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: accumulatedResponse,
+        thinkingTitle: currentThinkingTitle,
+        thinkingSteps: accumulatedThinkingSteps,
+        mutations: accumulatedMutations,
+        discoveries: accumulatedDiscoveries,
+        uiDirective: accumulatedUiDirective,
+        pendingToolCalls: accumulatedPendingToolCalls,
+        toolApprovalStatus: accumulatedPendingToolCalls.length ? 'pending' : undefined
+      }]);
+      setCurrentResponse('');
+      setCurrentThinkingTitle('');
+      setCurrentThinkingSteps([]);
+      setCurrentMutations([]);
+      setCurrentDiscoveries([]);
+      setCurrentUiDirective(undefined);
+      setCurrentPendingToolCalls([]);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsStreaming(false);
+    }
+  }, [isStreaming, userId, setActiveView, setViewData, applyMutation]);
 
   // Listen for skill handoffs
   useEffect(() => {
@@ -151,6 +263,23 @@ Please draft a high-impact LinkedIn post about this for my network. Start a thou
     window.addEventListener('cadence:promote_to_linkedin', handleLinkedInPromote);
     return () => window.removeEventListener('cadence:promote_to_linkedin', handleLinkedInPromote);
   }, [setActiveView, setViewData, handleSend]);
+
+  useEffect(() => {
+    const handleAddToSchedule = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      const { title, date, time } = detail;
+      const prompt = `Add this event to my schedule:
+Title: ${title}
+Timing: ${date} ${time || ''}
+
+Please analyze where this fits best in my current plan.`;
+      
+      handleSend(undefined, prompt);
+    };
+
+    window.addEventListener('cadence:add_to_schedule', handleAddToSchedule);
+    return () => window.removeEventListener('cadence:add_to_schedule', handleAddToSchedule);
+  }, [handleSend]);
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -227,16 +356,20 @@ Please draft a high-impact LinkedIn post about this for my network. Start a thou
         )}
 
         {messages.map((m, idx) => (
-          <AgentMessage key={idx} {...m} />
+          <AgentMessage key={idx} {...m} onResume={(action) => handleResume(idx, action)} />
         ))}
 
-        {isStreaming && (currentResponse || currentThinkingSteps.length > 0 || currentDiscoveries.length > 0) && (
+        {isStreaming && (currentResponse || currentThinkingSteps.length > 0 || currentDiscoveries.length > 0 || currentPendingToolCalls.length > 0) && (
           <AgentMessage 
             role="assistant" 
             content={currentResponse} 
+            thinkingTitle={currentThinkingTitle}
             thinkingSteps={currentThinkingSteps}
             mutations={currentMutations}
             discoveries={currentDiscoveries}
+            uiDirective={currentUiDirective}
+            pendingToolCalls={currentPendingToolCalls}
+            toolApprovalStatus={currentPendingToolCalls.length > 0 ? 'pending' : undefined}
           />
         )}
         
