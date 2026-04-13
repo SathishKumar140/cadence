@@ -8,6 +8,7 @@ export interface WeeklyPlanItem {
   day: string;
   time: string;
   reason: string;
+  date?: string;
   is_discovery?: boolean;
   is_synced?: boolean;
   location?: string;

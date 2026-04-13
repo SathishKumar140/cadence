@@ -2,24 +2,19 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  Calendar, 
-  ChevronRight, 
-  ChevronLeft, 
-  LayoutPanelLeft, 
+  Calendar,
   Clock, 
   MapPin, 
   CheckCircle2, 
   Zap, 
   Sparkles,
-  ArrowLeft,
-  Navigation
+  ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WeeklyPlanItem, useDashboard } from '../DashboardContext';
-import { convertTimeRange } from '../TimeUtils';
 
 export default function TacticalTimelineView() {
-  const { plan, userId, accessToken, setActiveView } = useDashboard();
+  const { plan, setActiveView } = useDashboard();
   const [selectedWeek, setSelectedWeek] = useState(0); // 0 = Current, 1 = Next, etc.
 
   // Group events by actual ISO date
@@ -143,7 +138,7 @@ export default function TacticalTimelineView() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-16"
             >
-              {sortedDates.map((dateStr, dateIdx) => {
+              {sortedDates.map((dateStr) => {
                 const { day, date } = formatDateLabel(dateStr);
                 const items = groupedByDate[dateStr];
 

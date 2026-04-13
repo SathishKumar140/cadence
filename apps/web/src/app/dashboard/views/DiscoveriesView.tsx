@@ -62,7 +62,7 @@ export default function DiscoveriesView({ data }: DiscoveriesViewProps) {
       });
 
       return `${startFormatted} - ${timeFormatter.format(endDate)}`;
-    } catch (e) {
+    } catch {
       return dateStr;
     }
   };

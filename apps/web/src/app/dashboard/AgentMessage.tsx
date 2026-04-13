@@ -1,7 +1,6 @@
 'use client';
 
-import { Brain, Zap, Sparkles, Maximize2, Calendar, Clock, MapPin } from 'lucide-react';
-import { CheckCircle2 } from 'lucide-react';
+import { Brain, Zap, Sparkles, Maximize2, Calendar, Clock, CheckCircle2 } from 'lucide-react';
 import { DashboardMutation, WeeklyPlanItem, useDashboard } from './DashboardContext';
 
 interface AgentMessageProps {
@@ -14,7 +13,7 @@ interface AgentMessageProps {
   discoveries?: WeeklyPlanItem[];
   promotion?: { topic: string; target: string };
   uiDirective?: { view: string; data?: Record<string, unknown> };
-  pendingToolCalls?: { id: string; name: string; args: any }[];
+  pendingToolCalls?: { id: string; name: string; args: Record<string, unknown> }[];
   toolApprovalStatus?: 'pending' | 'approved' | 'rejected';
   onResume?: (action: 'approve' | 'reject') => void;
 }
@@ -202,7 +201,8 @@ export default function AgentMessage({ role, content, thinkingTitle, thinking, t
                     const isScheduleItem = tc.name === 'add_plan_item';
                     
                     if (isScheduleItem) {
-                      const { title, day, time, reason, date } = tc.args;
+                      const args = tc.args as Record<string, string>;
+                      const { title, day, time, reason, date } = args;
                       return (
                         <div key={idx} className="bg-white/50 dark:bg-zinc-900/50 border border-indigo-500/20 rounded-2xl p-4 shadow-sm">
                           <div className="flex items-start gap-4">

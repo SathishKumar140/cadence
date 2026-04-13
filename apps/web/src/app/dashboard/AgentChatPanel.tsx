@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import { Send, Sparkles, User as UserIcon, Settings } from 'lucide-react';
 import AgentMessage from './AgentMessage';
@@ -22,7 +22,7 @@ export interface ChatMessage {
   discoveries?: WeeklyPlanItem[];
   promotion?: { topic: string; target: string };
   uiDirective?: { view: string; data?: Record<string, unknown> };
-  pendingToolCalls?: { id: string; name: string; args: any }[];
+  pendingToolCalls?: { id: string; name: string; args: Record<string, unknown> }[];
   toolApprovalStatus?: 'pending' | 'approved' | 'rejected';
 }
 
@@ -36,7 +36,7 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
   const [currentMutations, setCurrentMutations] = useState<DashboardMutation[]>([]);
   const [currentDiscoveries, setCurrentDiscoveries] = useState<WeeklyPlanItem[]>([]);
   const [currentUiDirective, setCurrentUiDirective] = useState<{ view: string; data?: Record<string, unknown> } | undefined>(undefined);
-  const [currentPendingToolCalls, setCurrentPendingToolCalls] = useState<{ id: string; name: string; args: any }[]>([]);
+  const [currentPendingToolCalls, setCurrentPendingToolCalls] = useState<{ id: string; name: string; args: Record<string, unknown> }[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const { applyMutation, setActiveView, setViewData, onOpenSettings, activeView } = useDashboard();
 
@@ -62,7 +62,7 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
     let accumulatedMutations: DashboardMutation[] = [];
     let accumulatedDiscoveries: WeeklyPlanItem[] = [];
     let accumulatedUiDirective: { view: string; data?: Record<string, unknown> } | undefined = undefined;
-    let accumulatedPendingToolCalls: { id: string; name: string; args: any }[] = [];
+    let accumulatedPendingToolCalls: { id: string; name: string; args: Record<string, unknown> }[] = [];
     setCurrentPendingToolCalls([]);
     try {
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -90,8 +90,6 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
                 accumulatedResponse += event.content;
                 setCurrentResponse(accumulatedResponse);
                 
-                // If we are currently in the LinkedIn Composer view, sync the draft live
-                // Use a functional update logic or check current state
                 if (accumulatedUiDirective?.view === 'linkedin_composer' || activeView === 'linkedin_composer') {
                    setViewData((prev: Record<string, unknown> | null) => ({ ...prev, draft: accumulatedResponse }));
                 }
@@ -118,8 +116,8 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
                 accumulatedPendingToolCalls = event.tool_calls;
                 setCurrentPendingToolCalls(accumulatedPendingToolCalls);
               }
-            } catch (err) {
-              console.error("Error parsing SSE event", err);
+            } catch {
+              // Error parsing SSE event
             }
           }
         }
@@ -142,17 +140,16 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
       setCurrentDiscoveries([]);
       setCurrentUiDirective(undefined);
       setCurrentPendingToolCalls([]);
-    } catch (err) {
-      console.error("Chat error", err);
+    } catch {
+      // Error in stream
     } finally {
       setIsStreaming(false);
     }
-  }, [input, isStreaming, userId, activeView, setActiveView, setViewData, applyMutation]);
+  }, [input, isStreaming, userId, activeView, setActiveView, setViewData, applyMutation, currentThinkingTitle]);
 
   const handleResume = useCallback(async (msgIdx: number, action: 'approve' | 'reject') => {
     if (isStreaming) return;
     
-    // Optimistically update status
     const status = action === 'approve' ? 'approved' : 'rejected';
     setMessages(prev => prev.map((msg, i) => i === msgIdx ? { ...msg, toolApprovalStatus: status } : msg));
     
@@ -162,7 +159,7 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
     let accumulatedMutations: DashboardMutation[] = [];
     let accumulatedDiscoveries: WeeklyPlanItem[] = [];
     let accumulatedUiDirective: { view: string; data?: Record<string, unknown> } | undefined = undefined;
-    let accumulatedPendingToolCalls: { id: string; name: string; args: any }[] = [];
+    let accumulatedPendingToolCalls: { id: string; name: string; args: Record<string, unknown> }[] = [];
     try {
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       if (apiUrl && !apiUrl.startsWith('http')) apiUrl = `https://${apiUrl}`;
@@ -211,11 +208,12 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
                 accumulatedPendingToolCalls = event.tool_calls;
                 setCurrentPendingToolCalls(accumulatedPendingToolCalls);
               }
-            } catch (err) {}
+            } catch {
+              // Error parsing SSE event
+            }
           }
         }
       }
-      // Depending on whether we already had text in the original message, we append a new message for the resumed chunk
       setMessages(prev => [...prev, { 
         role: 'assistant', 
         content: accumulatedResponse,
@@ -234,14 +232,13 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
       setCurrentDiscoveries([]);
       setCurrentUiDirective(undefined);
       setCurrentPendingToolCalls([]);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Error in stream
     } finally {
       setIsStreaming(false);
     }
-  }, [isStreaming, userId, setActiveView, setViewData, applyMutation]);
+  }, [isStreaming, userId, setActiveView, setViewData, applyMutation, currentThinkingTitle]);
 
-  // Listen for skill handoffs
   useEffect(() => {
     const handleLinkedInPromote = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -253,7 +250,6 @@ AI Reasoning: ${reasoning}
 
 Please draft a high-impact LinkedIn post about this for my network. Start a thought leadership draft.`;
       
-      // Proactively switch view so the user sees the workspace being prepared
       setActiveView('linkedin_composer');
       setViewData({ topic, context, reasoning });
       
@@ -291,7 +287,6 @@ Please analyze where this fits best in my current plan.`;
     <div className={`h-full bg-[var(--background)] lg:border-r border-[var(--card-border)] flex flex-col relative transition-all duration-500 overflow-hidden ${
       !isOpen ? 'lg:flex hidden' : 'fixed inset-0 lg:relative z-[160] lg:z-0 lg:flex'
     }`}>
-      {/* Header - Ultra-Minimalist Branded Identity */}
       <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--card-border)] bg-[var(--background)]/80 backdrop-blur-xl shrink-0">
         <div className="flex items-center gap-4">
           <Image 
@@ -306,7 +301,6 @@ Please analyze where this fits best in my current plan.`;
         </div>
         
         <div className="flex items-center gap-4">
-           {/* User Profile minimalist view */}
            <div className="hidden sm:flex items-center gap-3 pr-2 border-r border-[var(--card-border)]">
               <div className="flex flex-col items-end min-w-0">
                  <span className="text-[10px] font-black text-[var(--header-text)] italic leading-none truncate max-w-[100px]">{user.full_name}</span>
@@ -332,7 +326,6 @@ Please analyze where this fits best in my current plan.`;
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 scroll-smooth custom-scrollbar">
         {messages.length === 0 && !isStreaming && (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-10 animate-in fade-in zoom-in-95 duration-1000">
