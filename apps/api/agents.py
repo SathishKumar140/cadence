@@ -13,15 +13,46 @@ import models
 
 load_dotenv()
 
-def get_model(provider: str = "openai", api_key: str = None, model_name: str = None):
-    """Factory to get the appropriate LLM."""
-    if provider == "google":
+def flatten_content(content: Any) -> str:
+    """Normalizes AI content blocks (strings or lists of dicts) into a single string."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+            elif isinstance(part, dict):
+                if part.get("type") == "text":
+                    parts.append(part.get("text", ""))
+                elif "text" in part:
+                    parts.append(part["text"])
+        return "".join(parts)
+    return str(content) if content is not None else ""
+
+def get_model(provider: str = None, api_key: str = None, model_name: str = None):
+    """Factory to get the appropriate LLM based on global or local config."""
+    # 1. Resolve Provider
+    if not provider:
+        active_provider = os.getenv("AI_PROVIDER", "openai").lower()
+    else:
+        active_provider = provider.lower()
+    
+    # 2. Strict Quota Protection: If provider is 'openai' but there's no key 
+    # and env says 'google', force google.
+    if active_provider == "openai" and not api_key and os.getenv("AI_PROVIDER") == "google":
+        active_provider = "google"
+        
+    print(f"[CADENCE] Model Factory: Using {active_provider} (Requested={provider})")
+
+    if active_provider == "google":
         return ChatGoogleGenerativeAI(
-            model=model_name or "gemini-1.5-pro",
+            model=model_name or "gemini-3.1-flash-lite-preview",
             google_api_key=api_key or os.getenv("GOOGLE_API_KEY"),
             temperature=0
         )
     else:
+        # Default fallback to OpenAI
         return ChatOpenAI(
             model=model_name or "gpt-4o",
             api_key=api_key or os.getenv("OPENAI_API_KEY"),
@@ -109,7 +140,7 @@ def analyze_patterns_node(state: AgentState):
     
     response = llm.invoke([SystemMessage(content="You are a helpful AI that analyzes user behavior patterns."), HumanMessage(content=prompt)])
     
-    return {"analysis": response.content}
+    return {"analysis": flatten_content(response.content)}
 
 from integrations import EventDiscoveryService
 
@@ -129,7 +160,7 @@ async def discovery_agent_node(state: AgentState):
         print(f"Discovery Service Error: {e}")
 
     # Fallback to AI generation
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=state.get("api_key"))
+    llm = get_model(state.get("provider"), state.get("api_key"))
     prompt = f"""
     You are an AI Scout. Search for highly relevant, specific upcoming events for these interests: {interests}.
     Current user timezone: {state['timezone']}.
@@ -138,7 +169,8 @@ async def discovery_agent_node(state: AgentState):
     response = await llm.ainvoke([SystemMessage(content="You are a professional event discovery specialist."), HumanMessage(content=prompt)])
     
     try:
-        content = response.content.replace("```json", "").replace("```", "").strip()
+        raw_content = flatten_content(response.content)
+        content = raw_content.replace("```json", "").replace("```", "").strip()
         discovered = json.loads(content)
         for d in discovered: d["source"] = "ai_suggested"
     except:
@@ -183,7 +215,8 @@ def planner_agent_node(state: AgentState):
     response = llm.invoke([SystemMessage(content="You are a proactive planner."), HumanMessage(content=prompt)])
     
     try:
-        content = response.content.replace("```json", "").replace("```", "").strip()
+        raw_content = flatten_content(response.content)
+        content = raw_content.replace("```json", "").replace("```", "").strip()
         weekly_plan = json.loads(content)
         # Ensure IDs exist if LLM missed them
         for item in weekly_plan:
@@ -194,7 +227,7 @@ def planner_agent_node(state: AgentState):
         
     return {"weekly_plan": weekly_plan}
 
-def run_alternate_agent(current_plan: List[Dict], item_to_replace: Dict, goals: Dict, provider: str = "openai", api_key: str = None):
+def run_alternate_agent(current_plan: List[Dict], item_to_replace: Dict, goals: Dict, provider: str = None, api_key: str = None):
     """Specialized function to rethink a single slot."""
     llm = get_model(provider, api_key)
     
@@ -225,7 +258,8 @@ def run_alternate_agent(current_plan: List[Dict], item_to_replace: Dict, goals: 
     
     import json
     try:
-        content = response.content.replace("```json", "").replace("```", "").strip()
+        raw_content = flatten_content(response.content)
+        content = raw_content.replace("```json", "").replace("```", "").strip()
         new_item = json.loads(content)
         return new_item
     except:
@@ -254,7 +288,8 @@ def generate_insights_node(state: AgentState):
     
     import json
     try:
-        content = response.content.replace("```json", "").replace("```", "").strip()
+        raw_content = flatten_content(response.content)
+        content = raw_content.replace("```json", "").replace("```", "").strip()
         insights = json.loads(content)
     except:
         insights = {"optimization_score": 70, "insight_cards": []}
@@ -277,25 +312,29 @@ async def analyze_problem_node(state: DeepThinkingState):
     llm = get_model(state.get("provider"), state.get("api_key"))
     prompt = f"Decompose this complex planning request into core constraints and goals: {state['query']}"
     res = await llm.ainvoke([SystemMessage(content="You are a strategic analyst."), HumanMessage(content=prompt)])
-    return {"analysis": res.content}
+    content = flatten_content(res.content)
+    return {"analysis": content}
 
 async def draft_plan_node(state: DeepThinkingState):
     llm = get_model(state.get("provider"), state.get("api_key"))
     prompt = f"Based on this analysis: {state['analysis']}, create a detailed draft schedule plan."
     res = await llm.ainvoke([SystemMessage(content="You are a meticulous planner."), HumanMessage(content=prompt)])
-    return {"draft": res.content}
+    content = flatten_content(res.content)
+    return {"draft": content}
 
 async def evaluate_plan_node(state: DeepThinkingState):
     llm = get_model(state.get("provider"), state.get("api_key"))
     prompt = f"Critique this draft plan for potential conflicts or missed goals: {state['draft']}"
     res = await llm.ainvoke([SystemMessage(content="You are a critical reviewer."), HumanMessage(content=prompt)])
-    return {"critique": res.content}
+    content = flatten_content(res.content)
+    return {"critique": content}
 
 async def refine_plan_node(state: DeepThinkingState):
     llm = get_model(state.get("provider"), state.get("api_key"))
     prompt = f"Finalize the plan using the original query, draft, and critique: {state['critique']}"
     res = await llm.ainvoke([SystemMessage(content="You are an expert scheduler."), HumanMessage(content=prompt)])
-    return {"final_output": res.content}
+    content = flatten_content(res.content)
+    return {"final_output": content}
 
 def create_deep_thinking_agent():
     workflow = StateGraph(DeepThinkingState)
@@ -312,7 +351,7 @@ def create_deep_thinking_agent():
     
     return workflow.compile()
 
-async def run_deep_think(query: str, user_id: str, db: Session, provider: str = "openai", api_key: str = None):
+async def run_deep_think(query: str, user_id: str, db: Session, provider: str = None, api_key: str = None):
     """Refactor to yield progress stages and final result."""
     agent = create_deep_thinking_agent()
     
@@ -363,7 +402,7 @@ def create_insight_agent():
     return workflow.compile()
 
 # Entry point
-async def run_full_agent(user_id: str, db: Session, provider: str = "openai", api_key: str = None):
+async def run_full_agent(user_id: str, db: Session, provider: str = None, api_key: str = None):
     agent = create_insight_agent()
     # If no user key provided, ChatOpenAI will use OPENAI_API_KEY from environment
     result = await agent.ainvoke({"user_id": user_id, "db": db, "provider": provider, "api_key": api_key})

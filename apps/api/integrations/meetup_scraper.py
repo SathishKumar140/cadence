@@ -54,7 +54,16 @@ class MeetupScraper:
                         try:
                             title_el = card.select_one('[data-testid="event-card-title"]')
                             title = title_el.text.strip() if title_el else "Meetup Event"
-                            link = card.find('a')['href'] if card.find('a') else ""
+                            # More specific link extraction: search for the link that contains the title or is the main card link
+                            title_link = card.select_one('a[id*="event-card-title"]') or card.find('a', href=True)
+                            link = title_link['href'] if title_link else ""
+                            
+                            # Validation: If it's just the home link or login link, skip it
+                            if any(x in link for x in ["/home", "/login", "/register", "/find"]):
+                                # Try one more time looking for an event slug
+                                event_links = [a['href'] for a in card.find_all('a', href=True) if "/events/" in a['href']]
+                                link = event_links[0] if event_links else link
+
                             if link and not link.startswith('http'):
                                 link = f"https://www.meetup.com{link}"
                             
@@ -97,7 +106,7 @@ class MeetupScraper:
             "description": item.get("description", ""),
             "date": item.get("startDate"), # Normalized to 'date' for frontend
             "end_date": item.get("endDate"),
-            "url": item.get("url"),
+            "url": item.get("url") if item.get("url") and "meetup.com/" in item.get("url") and "/home" not in item.get("url") and "/find" not in item.get("url") else None,
             "location": item.get("location", {}).get("name", "Remote/TBD"),
             "source": "meetup"
         }

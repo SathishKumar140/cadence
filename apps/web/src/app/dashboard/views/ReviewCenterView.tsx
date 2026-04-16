@@ -251,8 +251,14 @@ export default function ReviewCenterView({ data }: { data?: Record<string, unkno
                           {new Date(action.created_at).toLocaleDateString()}
                         </div>
                         {action.source_url && (
-                          <a href={action.source_url} target="_blank" className="flex items-center gap-1 hover:text-indigo-500 transition-colors">
-                            Source Info
+                          <a 
+                            href={action.source_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-indigo-500 transition-all border border-slate-200 dark:border-slate-700 hover:border-indigo-500/30 font-black italic tracking-tight"
+                          >
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                            Visit Website
                           </a>
                         )}
                       </div>
@@ -344,9 +350,16 @@ export default function ReviewCenterView({ data }: { data?: Record<string, unkno
                       </div>
                     </div>
                     
-                    <p className="text-[10px] text-[var(--muted-text)] line-clamp-1 opacity-60 italic group-hover:opacity-100 group-hover:line-clamp-none transition-all duration-300">
+                    <p className="text-[10px] text-[var(--muted-text)] line-clamp-1 opacity-60 italic group-hover:opacity-100 group-hover:line-clamp-none transition-all duration-300 mb-2">
                       {listener.context_instruction}
                     </p>
+
+                    {listener.last_processed && (
+                      <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-medium tracking-tight mt-2 border-t border-slate-100 dark:border-slate-800/50 pt-2 group-hover:opacity-100 opacity-60 transition-opacity">
+                        <Clock className="w-2.5 h-2.5 text-indigo-500/50" />
+                        <span>Last Pulled: {new Date(listener.last_processed).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

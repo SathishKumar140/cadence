@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Image from 'next/image';
-import { Send, Sparkles, User as UserIcon, Settings } from 'lucide-react';
+import { Send, Sparkles, User as UserIcon, Settings, Loader2, Globe, RotateCcw } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import AgentMessage from './AgentMessage';
 import { useDashboard, WeeklyPlanItem, DashboardMutation } from './DashboardContext';
 import LogoutButton from './LogoutButton';
@@ -24,6 +25,11 @@ export interface ChatMessage {
   uiDirective?: { view: string; data?: Record<string, unknown> };
   pendingToolCalls?: { id: string; name: string; args: Record<string, unknown> }[];
   toolApprovalStatus?: 'pending' | 'approved' | 'rejected';
+  metrics?: {
+    type: 'line' | 'bar';
+    title: string;
+    data: any[];
+  };
 }
 
 export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelProps) {
@@ -37,8 +43,22 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
   const [currentDiscoveries, setCurrentDiscoveries] = useState<WeeklyPlanItem[]>([]);
   const [currentUiDirective, setCurrentUiDirective] = useState<{ view: string; data?: Record<string, unknown> } | undefined>(undefined);
   const [currentPendingToolCalls, setCurrentPendingToolCalls] = useState<{ id: string; name: string; args: Record<string, unknown> }[]>([]);
+  const [currentMetrics, setCurrentMetrics] = useState<any | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { applyMutation, setActiveView, setViewData, onOpenSettings, activeView } = useDashboard();
+
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [input, adjustTextareaHeight]);
 
   const handleSend = useCallback(async (e?: React.FormEvent, overridePrompt?: string, promotionMetadata?: { topic: string; target: string }) => {
     if (e) e.preventDefault();
@@ -63,7 +83,9 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
     let accumulatedDiscoveries: WeeklyPlanItem[] = [];
     let accumulatedUiDirective: { view: string; data?: Record<string, unknown> } | undefined = undefined;
     let accumulatedPendingToolCalls: { id: string; name: string; args: Record<string, unknown> }[] = [];
+    let accumulatedMetrics: any | null = null;
     setCurrentPendingToolCalls([]);
+    setCurrentMetrics(null);
     try {
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       if (apiUrl && !apiUrl.startsWith('http')) apiUrl = `https://${apiUrl}`;
@@ -109,6 +131,9 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
                 setCurrentUiDirective(accumulatedUiDirective);
                 setActiveView(event.view);
                 setViewData(event.data);
+              } else if (event.type === 'metrics') {
+                accumulatedMetrics = event.data;
+                setCurrentMetrics(event.data);
               } else if (event.type === 'discoveries') {
                 accumulatedDiscoveries = [...accumulatedDiscoveries, ...event.data];
                 setCurrentDiscoveries(accumulatedDiscoveries);
@@ -131,7 +156,8 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
         discoveries: accumulatedDiscoveries,
         uiDirective: accumulatedUiDirective,
         pendingToolCalls: accumulatedPendingToolCalls,
-        toolApprovalStatus: accumulatedPendingToolCalls.length > 0 ? 'pending' : undefined
+        toolApprovalStatus: accumulatedPendingToolCalls.length > 0 ? 'pending' : undefined,
+        metrics: accumulatedMetrics
       }]);
       setCurrentResponse('');
       setCurrentThinkingTitle('');
@@ -160,6 +186,8 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
     let accumulatedDiscoveries: WeeklyPlanItem[] = [];
     let accumulatedUiDirective: { view: string; data?: Record<string, unknown> } | undefined = undefined;
     let accumulatedPendingToolCalls: { id: string; name: string; args: Record<string, unknown> }[] = [];
+    let accumulatedMetrics: any | null = null;
+    setCurrentMetrics(null);
     try {
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       if (apiUrl && !apiUrl.startsWith('http')) apiUrl = `https://${apiUrl}`;
@@ -201,6 +229,9 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
                 setCurrentUiDirective(accumulatedUiDirective);
                 setActiveView(event.view);
                 setViewData(event.data);
+              } else if (event.type === 'metrics') {
+                accumulatedMetrics = event.data;
+                setCurrentMetrics(event.data);
               } else if (event.type === 'discoveries') {
                 accumulatedDiscoveries = [...accumulatedDiscoveries, ...event.data];
                 setCurrentDiscoveries(accumulatedDiscoveries);
@@ -223,7 +254,8 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
         discoveries: accumulatedDiscoveries,
         uiDirective: accumulatedUiDirective,
         pendingToolCalls: accumulatedPendingToolCalls,
-        toolApprovalStatus: accumulatedPendingToolCalls.length ? 'pending' : undefined
+        toolApprovalStatus: accumulatedPendingToolCalls.length ? 'pending' : undefined,
+        metrics: accumulatedMetrics
       }]);
       setCurrentResponse('');
       setCurrentThinkingTitle('');
@@ -238,6 +270,31 @@ export default function AgentChatPanel({ isOpen, userId, user }: AgentChatPanelP
       setIsStreaming(false);
     }
   }, [isStreaming, userId, setActiveView, setViewData, applyMutation, currentThinkingTitle]);
+
+  const handleRestart = useCallback(async () => {
+    if (isStreaming) return;
+    if (!confirm("Are you sure you want to restart the session? This will clear your chat history and memory.")) return;
+
+    try {
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      if (apiUrl && !apiUrl.startsWith('http')) apiUrl = `https://${apiUrl}`;
+      
+      await fetch(`${apiUrl}/api/agent/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId })
+      });
+
+      // Clear Frontend State
+      setMessages([]);
+      setActiveView('default');
+      setViewData(null);
+      setInput('');
+      
+    } catch (err) {
+      console.error("Failed to restart session:", err);
+    }
+  }, [userId, isStreaming, setActiveView, setViewData]);
 
   useEffect(() => {
     const handleLinkedInPromote = (e: Event) => {
@@ -315,6 +372,15 @@ Please analyze where this fits best in my current plan.`;
            </div>
            
            <button 
+             onClick={handleRestart}
+             disabled={isStreaming}
+             className="p-2 text-[var(--muted-text)] hover:text-indigo-500 transition-all group disabled:opacity-20"
+             title="Restart Session"
+           >
+             <RotateCcw className={`w-4 h-4 transition-transform duration-500 ${isStreaming ? 'animate-spin' : 'group-hover:-rotate-180'}`} />
+           </button>
+
+           <button 
              onClick={onOpenSettings}
              className="p-2 text-[var(--muted-text)] hover:text-indigo-500 transition-colors group"
              title="System Settings"
@@ -363,30 +429,94 @@ Please analyze where this fits best in my current plan.`;
             uiDirective={currentUiDirective}
             pendingToolCalls={currentPendingToolCalls}
             toolApprovalStatus={currentPendingToolCalls.length > 0 ? 'pending' : undefined}
+            metrics={currentMetrics}
           />
         )}
         
         <div ref={chatEndRef} />
       </div>
 
-      {/* Input - Modernized Minimal Bar */}
-      <div className="p-6 border-t border-[var(--card-border)] bg-[var(--background)]/50 backdrop-blur-xl shrink-0">
-        <form onSubmit={handleSend} className="relative group max-w-2xl mx-auto w-full">
-          <input 
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isStreaming}
-            placeholder="Instruct the agent..."
-            className="w-full bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl py-4 pl-6 pr-14 text-sm text-[var(--header-text)] shadow-lg shadow-black/5 dark:shadow-none outline-none focus:border-indigo-500/50 transition-all"
-          />
-          <button 
-            type="submit"
-            disabled={isStreaming || !input.trim()}
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 text-white rounded-xl transition-all shadow-lg shadow-indigo-600/20 active:scale-95"
+      <div className="p-6 pt-2 bg-gradient-to-t from-[var(--background)] to-transparent shrink-0">
+        <div className="max-w-[90%] mx-auto w-full relative">
+          
+          {/* Status Bar */}
+          <AnimatePresence>
+            {isStreaming && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="absolute -top-10 left-6 flex items-center gap-2 bg-[var(--card-bg)]/80 backdrop-blur-md border border-[var(--card-border)] px-3 py-1.5 rounded-full shadow-xl z-20"
+              >
+                <div className="flex gap-1">
+                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+                <span className="text-[9px] font-black text-[var(--header-text)] uppercase tracking-widest opacity-60">
+                  {currentThinkingTitle || "Agent is synthesizing..."}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Context Awareness Pill & Shortcuts */}
+          <div className="flex items-center justify-between mb-2 px-2">
+            {!isStreaming ? (
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-indigo-500/5 border border-indigo-500/20 rounded-lg">
+                 <Globe className="w-2.5 h-2.5 text-indigo-500" />
+                 <span className="text-[8px] font-black text-indigo-500 uppercase tracking-tighter">Strategic Context Active</span>
+              </div>
+            ) : (
+              <div /> // Spacer
+            )}
+            
+            <p className="text-[8px] font-black text-[var(--muted-text)] uppercase tracking-widest opacity-20">
+              Shift + Enter for new line • Enter to send
+            </p>
+          </div>
+
+          <form 
+            onSubmit={handleSend} 
+            className={`relative group bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl shadow-2xl transition-all duration-300 ${
+              isStreaming ? 'opacity-80' : 'hover:border-indigo-500/30 shadow-indigo-500/5'
+            }`}
           >
-            <Send className="w-4 h-4" />
-          </button>
-        </form>
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              disabled={isStreaming}
+              placeholder={isStreaming ? "Thinking..." : "Ask your assistant anything..."}
+              className="w-full bg-transparent py-4 pl-6 pr-14 text-sm text-[var(--header-text)] outline-none resize-none placeholder:text-[var(--muted-text)] placeholder:opacity-40 min-h-[56px] max-h-[200px]"
+            />
+            
+            <div className="absolute right-2 bottom-2">
+              <button 
+                type="submit"
+                disabled={isStreaming || !input.trim()}
+                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${
+                  isStreaming || !input.trim()
+                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                    : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 hover:scale-105 active:scale-95'
+                }`}
+              >
+                {isStreaming ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

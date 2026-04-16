@@ -94,6 +94,34 @@ export function useDashboardState(initial: {
           setKnowledgeItems(prev => [mutation.data as KnowledgeItem, ...prev]);
         } else if (mutation.action === 'replace') {
           setKnowledgeItems(mutation.data as KnowledgeItem[]);
+        } else if (mutation.action === 'remove') {
+          setKnowledgeItems(prev => prev.filter(k => k.id !== (mutation.data as { id: string }).id));
+        }
+        break;
+      case 'dashboard':
+        if (mutation.action === 'clear') {
+          setPlan([]);
+          setInsights({ optimization_score: 0, insight_cards: [] });
+          setPendingActions([]);
+          setListeners([]);
+          setRoutines([]);
+          setEmails([]);
+          setKnowledgeItems([]);
+          setActiveGoals([]);
+        } else if (mutation.action === 'sync') {
+          const { plan, insights, selected_week_index } = mutation.data;
+          if (plan) setPlan(plan);
+          if (insights) setInsights(insights);
+          if (selected_week_index !== undefined) {
+             // You can handle week index sync if needed
+          }
+        }
+        break;
+      case 'discovery':
+        if (mutation.action === 'sync') {
+          const { listeners, actions } = mutation.data;
+          if (listeners) setListeners(listeners);
+          if (actions) setPendingActions(actions);
         }
         break;
     }

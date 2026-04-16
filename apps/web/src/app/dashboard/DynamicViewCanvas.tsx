@@ -38,7 +38,7 @@ export default function DynamicViewCanvas() {
       case 'knowledge_hub':
         return <KnowledgeHubView />;
       case 'all_events':
-        return <TacticalTimelineView />;
+        return <TacticalTimelineView data={viewData || {}} />;
       default:
         return <ScheduleView />;
     }

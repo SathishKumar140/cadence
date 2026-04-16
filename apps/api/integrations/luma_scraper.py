@@ -58,13 +58,13 @@ class LumaScraper:
                     # they want to see what's trending, not just items with that word.
                     is_broad_search = any(k.lower() in ["event", "events", "local", "nearby", "scout"] for k in keywords)
                     
-                    if not keywords or is_broad_search or any(k.lower() in text for k in keywords):
+                    if (not keywords or is_broad_search or any(k.lower() in text for k in keywords)) and e_obj.get('url_slug'):
                         events_data.append({
                             "title": title,
                             "description": desc[:200] + "..." if len(desc) > 200 else desc,
                             "date": e_obj.get("start_at", ""),
                             "end_date": e_obj.get("end_at", ""),
-                            "url": f"https://lu.ma/{e_obj.get('url_slug', '')}",
+                            "url": f"https://lu.ma/{e_obj.get('url_slug')}",
                             "location": e_obj.get("geo_address_json", {}).get("city", location),
                             "source": "luma"
                         })

@@ -10,6 +10,28 @@ export default function KnowledgeHubView() {
   const [search, setSearch] = React.useState('');
   const [loading, setLoading] = React.useState(false);
 
+  const handleDelete = async (itemId: string) => {
+    // Optimistic Update
+    const previousItems = [...(knowledgeItems || [])];
+    setKnowledgeItems(prev => prev.filter(item => item.id !== itemId));
+
+    try {
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      if (apiUrl && !apiUrl.startsWith('http')) apiUrl = `https://${apiUrl}`;
+      
+      const res = await fetch(`${apiUrl}/api/knowledge/${itemId}?user_id=${userId}`, {
+        method: 'DELETE'
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to delete item");
+      }
+    } catch (e) {
+      console.error("Deletion failed, rolling back:", e);
+      setKnowledgeItems(previousItems);
+    }
+  };
+
   React.useEffect(() => {
     const fetchKnowledge = async () => {
       setLoading(true);
@@ -102,15 +124,18 @@ export default function KnowledgeHubView() {
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="group bg-[var(--card-bg)] border border-[var(--card-border)] rounded-3xl p-6 hover:shadow-xl hover:shadow-violet-500/5 transition-all duration-300 flex flex-col h-full"
               >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex gap-2">
+                <div className="flex justify-between items-start mb-4 gap-4">
+                  <div className="flex flex-wrap gap-2">
                     {(item.tags || ['Knowledge']).map(tag => (
                       <span key={tag} className="px-2 py-1 rounded-lg bg-violet-500/10 text-violet-500 text-[9px] font-black uppercase tracking-wider">
                         {tag}
                       </span>
                     ))}
                   </div>
-                  <button className="text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100">
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+                    className="text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>

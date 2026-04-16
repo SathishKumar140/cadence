@@ -15,11 +15,12 @@ def _get_user_id():
 
 
 @tool
-def find_available_slots(days_ahead: int = 7, duration_minutes: int = 60) -> str:
+def find_available_slots(days_ahead: int = 7, duration_minutes: int = 60, start_date: str = None) -> str:
     """
     Analyze the user's calendar and find available time slots.
     days_ahead: How many days to look ahead (default 7)
     duration_minutes: Minimum slot duration needed in minutes (default 60)
+    start_date: ISO date string to start looking from (YYYY-MM-DD). Defaults to today.
     """
     user_id = _get_user_id()
     with SessionLocal() as db:
@@ -28,11 +29,22 @@ def find_available_slots(days_ahead: int = 7, duration_minutes: int = 60) -> str
         tz = ZoneInfo(tz_str)
 
         now = datetime.now(tz)
-        end_date = now + timedelta(days=days_ahead)
+        if start_date:
+            try:
+                search_start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=tz)
+                # If start_date is in the past, use now
+                if search_start < now:
+                    search_start = now
+            except Exception:
+                search_start = now
+        else:
+            search_start = now
+            
+        end_date = search_start + timedelta(days=days_ahead)
 
         events = db.query(models.CalendarEvent).filter(
             models.CalendarEvent.user_id == user_id,
-            models.CalendarEvent.start_time >= now,
+            models.CalendarEvent.start_time >= search_start,
             models.CalendarEvent.start_time <= end_date
         ).order_by(models.CalendarEvent.start_time).all()
 
@@ -56,7 +68,7 @@ def find_available_slots(days_ahead: int = 7, duration_minutes: int = 60) -> str
     work_end = 22    # 10pm
 
     for day_offset in range(days_ahead):
-        day = now + timedelta(days=day_offset)
+        day = search_start + timedelta(days=day_offset)
         day_key = day.strftime("%A %Y-%m-%d")
         busy = sorted(busy_blocks.get(day_key, []), key=lambda x: x["start"])
 

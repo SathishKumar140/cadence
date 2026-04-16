@@ -12,12 +12,12 @@ wants to add/move/delete activities, or asks to manage weekly goals:
 2. Use add_plan_item, update_plan_item, or remove_plan_item to apply changes.
 3. Be specific about times (HH:MM-HH:MM format) and days (full name like "Monday").
 4. After making changes, emit a ui_directive with view='schedule' so the dashboard refreshes.
-5. Proactively suggest: "Would you like me to find a better time slot?" when relevant.
+5. If the user asks to 'plan for next week', you MUST call generate_priority_weekly_plan() to fetch interest-based suggestions.
 """,
     triggers=[
         "show my schedule", "what's planned", "add to my plan", "move my workout",
         "reschedule", "delete from plan", "change my goals", "weekly plan",
-        "what do I have this week", "optimize my schedule"
+        "what do I have this week", "optimize my schedule", "plan for next week"
     ],
     ui_view="schedule",
     tools=TOOLS,

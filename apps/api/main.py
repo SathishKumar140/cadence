@@ -55,7 +55,7 @@ def health_check():
 
 
 from agents import run_full_agent
-from chat_agent import run_chat_agent_stream, resume_chat_agent_stream
+from chat_agent import run_chat_agent_stream, resume_chat_agent_stream, clear_session
 from integrations import EventDiscoveryService
 from integrations.linkedin import LinkedInClient
 
@@ -71,6 +71,9 @@ class SyncRequest(BaseModel):
     access_token: str
     user_id: str
     timezone: str = "UTC"
+
+class ResetRequest(BaseModel):
+    user_id: str
 
 class PreferenceUpdate(BaseModel):
     goals: Dict[str, Any]
@@ -98,7 +101,7 @@ class AddEventRequest(BaseModel):
 
 class UserSettingsUpdate(BaseModel):
     theme: str = "dark"
-    ai_provider: str = "openai"
+    ai_provider: Optional[str] = None
     ai_api_key: str = ""
     scouting_frequency: str = "6h"
 
@@ -331,7 +334,7 @@ async def get_dashboard_data(user_id: str, db: Session = Depends(get_db)):
         api_key = user.ai_api_key if user and user.ai_api_key else None
         
         # 3. Run Agent
-        provider = user.ai_provider if user and user.ai_provider else "openai"
+        provider = user.ai_provider if user and user.ai_provider else None
         data = await run_full_agent(user_id, db, provider=provider, api_key=api_key)
         
         # 4. Upsert Cache
@@ -419,7 +422,7 @@ async def suggest_alternate(req: AlternateRequest, db: Session = Depends(get_db)
             current_plan=plan,
             item_to_replace=item_to_replace,
             goals=pref.goals if pref else {},
-            provider=user.ai_provider if user and user.ai_provider else "openai",
+            provider=user.ai_provider if user and user.ai_provider else None,
             api_key=user.ai_api_key if user and user.ai_api_key else None
         )
         
@@ -477,10 +480,10 @@ async def unsync_calendar_event(user_id: str, item_id: str, access_token: str, d
 def get_user_settings(user_id: str, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
-        return {"theme": "dark", "ai_provider": "openai", "ai_api_key": "", "scouting_frequency": "6h"}
+        return {"theme": "dark", "ai_provider": None, "ai_api_key": "", "scouting_frequency": "6h"}
     return {
         "theme": user.theme or "dark",
-        "ai_provider": user.ai_provider or "openai",
+        "ai_provider": user.ai_provider,
         "ai_api_key": user.ai_api_key or "",
         "scouting_frequency": user.scouting_frequency or "6h"
     }
@@ -728,14 +731,16 @@ async def agent_chat_endpoint(req: ChatRequest, db: Session = Depends(get_db)):
 
     # Fetch user for settings
     user = db.query(models.User).filter(models.User.id == req.user_id).first()
-    provider = user.ai_provider if user and user.ai_provider else "openai"
+    provider = user.ai_provider if user and user.ai_provider else None
     api_key = user.ai_api_key if user and user.ai_api_key else None
 
     async def event_generator():
         combined_response = ""
         async for event in run_chat_agent_stream(req.user_id, req.message, db, history, provider, api_key):
             if event["type"] == "response":
-                combined_response += event["content"]
+                content = event.get("content", "")
+                if isinstance(content, str):
+                    combined_response += content
             yield f"data: {json.dumps(event)}\n\n"
         
         # Save assistant response
@@ -753,7 +758,7 @@ async def agent_resume_endpoint(req: AgentResumeRequest, db: Session = Depends(g
     
     # Fetch user for settings
     user = db.query(models.User).filter(models.User.id == req.user_id).first()
-    provider = user.ai_provider if user and user.ai_provider else "openai"
+    provider = user.ai_provider if user and user.ai_provider else None
     api_key = user.ai_api_key if user and user.ai_api_key else None
 
     async def event_generator():
@@ -775,6 +780,17 @@ async def agent_resume_endpoint(req: AgentResumeRequest, db: Session = Depends(g
 async def get_agent_history(user_id: str, db: Session = Depends(get_db)):
     msgs = db.query(models.AgentChatMessage).filter(models.AgentChatMessage.user_id == user_id).order_by(models.AgentChatMessage.created_at.asc()).limit(50).all()
     return msgs
+
+@app.post("/api/agent/reset")
+async def reset_agent_endpoint(req: ResetRequest, db: Session = Depends(get_db)):
+    # 1. Clear database history
+    db.query(models.AgentChatMessage).filter(models.AgentChatMessage.user_id == req.user_id).delete()
+    db.commit()
+    
+    # 2. Clear LangGraph memory and agent cache
+    await clear_session(req.user_id)
+    
+    return {"status": "success", "message": "Agent session and history cleared."}
 
 # Topic Listeners & Pending Actions
 @app.get("/api/listeners")
@@ -829,8 +845,8 @@ async def manual_scout_listener(listener_id: str, user_id: str, db: Session = De
     from skills.cognitive_listener.tools import _scout_for_updates_internal
     import json
     
-    # Internal helper runs synchronously but handles its own loops
-    result_str = _scout_for_updates_internal(topic=listener.topic, user_id=user_id)
+    # Internal helper runs asynchronously
+    result_str = await _scout_for_updates_internal(topic=listener.topic, user_id=user_id)
     result = json.loads(result_str)
     
     # Update last_processed
@@ -998,6 +1014,18 @@ def save_knowledge(req: KnowledgeSave, db: Session = Depends(get_db)):
     db.commit()
     return item
 
+@app.delete("/api/knowledge/{item_id}")
+def delete_knowledge(item_id: str, user_id: str, db: Session = Depends(get_db)):
+    item = db.query(models.KnowledgeItem).filter(
+        models.KnowledgeItem.id == item_id,
+        models.KnowledgeItem.user_id == user_id
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Knowledge item not found")
+    db.delete(item)
+    db.commit()
+    return {"status": "success"}
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Cadence API!"}
@@ -1060,7 +1088,7 @@ async def autonomous_scouting_pulse():
                         print(f"Intelligence Pulse: Scouting for topic '{listener.topic}' (ID: {listener.id}, Freq: {freq})")
                         try:
                             # Pass user_id and specific topic to the scouting tool
-                            _scout_for_updates_internal(topic=listener.topic, user_id=listener.user_id) 
+                            await _scout_for_updates_internal(topic=listener.topic, user_id=listener.user_id) 
                             listener.last_processed = now
                             db.commit()
                         except Exception as scout_err:

@@ -33,7 +33,7 @@ export interface DashboardGoals {
 }
 
 export interface DashboardMutation {
-  target: 'weekly_plan' | 'goals' | 'insights' | 'routines' | 'emails' | 'listeners' | 'actions' | 'knowledge';
+  target: 'weekly_plan' | 'goals' | 'insights' | 'routines' | 'emails' | 'listeners' | 'actions' | 'knowledge' | 'dashboard';
   action: 'add' | 'remove' | 'update' | 'replace';
   data: unknown; 
 }
@@ -75,6 +75,7 @@ export interface TopicListener {
   context_instruction: string;
   is_active: boolean;
   scouting_frequency: string;
+  last_processed?: string | null;
 }
 
 export interface PendingAction {
