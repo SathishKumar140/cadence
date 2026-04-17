@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Brain, ChevronDown, Zap, Maximize2 } from 'lucide-react';
+import { Brain, ChevronDown, Zap, Maximize2, Calendar, Clock } from 'lucide-react';
 import { DashboardMutation, WeeklyPlanItem, useDashboard } from './DashboardContext';
 import TacticalPulse, { MetricPoint } from './TacticalPulse';
 
@@ -87,6 +87,7 @@ const parseInline = (text: string) => {
 
 export default function AgentMessage({ role, content, thinkingTitle, thinking, thinkingSteps, mutations, discoveries, promotion, uiDirective, metrics, pendingToolCalls, toolApprovalStatus, onResume }: AgentMessageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isToolsExpanded, setIsToolsExpanded] = useState(false);
   const { setActiveView, setViewData, activeView } = useDashboard();
   const isUser = role === 'user';
   const allThinking = thinkingSteps || (thinking ? [thinking] : []);
@@ -105,9 +106,9 @@ export default function AgentMessage({ role, content, thinkingTitle, thinking, t
   };
 
   return (
-    <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} mb-8 group w-full`}>
+    <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} mb-1.5 group w-full`}>
       {allThinking.length > 0 && !isUser && !isThinkingResolved && (
-        <div className="w-full max-w-[90%] mb-4 px-1 opacity-60 hover:opacity-100 transition-opacity">
+        <div className="w-full max-w-[90%] mb-2 px-1 opacity-60 hover:opacity-100 transition-opacity">
           <button 
             onClick={() => setIsExpanded(!isExpanded)}
             className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all group ${
@@ -221,130 +222,121 @@ export default function AgentMessage({ role, content, thinkingTitle, thinking, t
         </div>
       )}
 
-      {mutations && mutations.length > 0 && (
-        <div className="mt-3 flex flex-col gap-2 w-full max-w-[85%]">
-          {mutations.map((mut, idx) => (
-            <div key={idx} className="flex items-center gap-3 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl animate-in zoom-in-95">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                <Zap className="w-4 h-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-bold text-emerald-500 uppercase tracking-tight">AI Mutation Applied</p>
-                <p className="text-xs text-[var(--muted-text)] truncate">
-                  {mut.action === 'add' ? (
-                    (mut.data as Record<string, unknown>).title ? `Added "${(mut.data as Record<string, unknown>).title}"` : 
-                    (mut.data as Record<string, unknown>).topic ? (
-                      <span className="flex items-center gap-1.5">
-                        Added topic: <span className="font-bold text-[var(--header-text)]">{String((mut.data as Record<string, unknown>).topic)}</span>
-                        {!!(mut.data as Record<string, unknown>).scouting_frequency && (
-                          <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-[9px] font-black tracking-tighter">
-                            { String((mut.data as Record<string, unknown>).scouting_frequency) } Pulse
-                          </span>
-                        )}
-                      </span>
-                    ) : 
-                    'Added new item'
-                  ) : 
-                   mut.action === 'remove' ? `Removed item` : 
-                   mut.action === 'update' ? `Updated dashboard data` : 'Modified state'}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      
       {toolApprovalStatus && pendingToolCalls && pendingToolCalls.length > 0 && (
-        <div className="mt-3 flex flex-col gap-2 w-full max-w-[85%]">
-            <div className={`p-4 rounded-2xl border transition-all animate-in zoom-in-95 ${
-              toolApprovalStatus === 'pending' ? 'bg-amber-500/10 border-amber-500/20' : 
+        <div className="mt-1 flex flex-col gap-2 w-full max-w-[85%]">
+            <div className={`p-3 rounded-[1.2rem] border transition-all animate-in zoom-in-95 ${
+              toolApprovalStatus === 'pending' ? 'bg-amber-500/10 border-amber-500/20 shadow-sm shadow-amber-500/5' : 
               toolApprovalStatus === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20' : 
               'bg-red-500/10 border-red-500/20'
             }`}>
-               <div className="flex items-center gap-2 mb-3">
-                 <div className={`p-1.5 rounded-lg ${
-                    toolApprovalStatus === 'pending' ? 'bg-amber-500/20 text-amber-500' : 
-                    toolApprovalStatus === 'approved' ? 'bg-emerald-500/20 text-emerald-500' : 
-                    'bg-red-500/20 text-red-500'
-                 }`}>
-                   <Zap className="w-4 h-4" />
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-2">
+                   <div className={`p-1 rounded-md ${
+                      toolApprovalStatus === 'pending' ? 'bg-amber-500/20 text-amber-500' : 
+                      toolApprovalStatus === 'approved' ? 'bg-emerald-500/20 text-emerald-500' : 
+                      'bg-red-500/20 text-red-500'
+                   }`}>
+                     <Zap className="w-3 h-3" />
+                   </div>
+                   <h4 className={`text-[10px] font-black uppercase tracking-widest ${
+                      toolApprovalStatus === 'pending' ? 'text-amber-500' : 
+                      toolApprovalStatus === 'approved' ? 'text-emerald-500' : 
+                      'text-red-500'
+                   }`}>
+                     {toolApprovalStatus === 'pending' ? 'System Action Required' : 
+                      toolApprovalStatus === 'approved' ? 'Action Approved' : 
+                      'Action Rejected'}
+                   </h4>
+                   
+                   {/* Compact Summary for Approved/Rejected states */}
+                   {toolApprovalStatus !== 'pending' && !isToolsExpanded && (
+                     <span className="text-[10px] text-[var(--muted-text)] font-medium italic opacity-60">
+                        — {pendingToolCalls.length} sequence{pendingToolCalls.length > 1 ? 's' : ''} executed
+                     </span>
+                   )}
                  </div>
-                 <h4 className={`text-[11px] font-black uppercase tracking-widest ${
-                    toolApprovalStatus === 'pending' ? 'text-amber-500' : 
-                    toolApprovalStatus === 'approved' ? 'text-emerald-500' : 
-                    'text-red-500'
-                 }`}>
-                   {toolApprovalStatus === 'pending' ? 'System Action Required' : 
-                    toolApprovalStatus === 'approved' ? 'Action Approved' : 
-                    'Action Rejected'}
-                 </h4>
+                 
+                 <div className="flex items-center gap-3">
+                   {toolApprovalStatus === 'pending' && onResume && (
+                     <div className="flex items-center gap-1.5 animate-in fade-in slide-in-from-right-2 duration-300">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onResume('approve'); }}
+                          className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-widest transition-all shadow-md shadow-indigo-600/20"
+                        >
+                          Approve
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onResume('reject'); }}
+                          className="px-3 py-1 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-red-500/10 text-[var(--muted-text)] hover:text-red-500 text-[9px] font-black uppercase tracking-widest transition-all"
+                        >
+                          Dismiss
+                        </button>
+                     </div>
+                   )}
+                   <button 
+                     onClick={() => setIsToolsExpanded(!isToolsExpanded)}
+                     className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors"
+                   >
+                     <ChevronDown className={`w-3.5 h-3.5 text-[var(--muted-text)] transition-transform duration-300 ${isToolsExpanded ? 'rotate-180' : ''}`} />
+                   </button>
+                 </div>
                </div>
                
-               <div className="space-y-2 mb-4">
-                 {pendingToolCalls.map((tc, idx) => {
-                    const isScheduleItem = tc.name === 'add_plan_item';
-                    
-                    if (isScheduleItem) {
-                      const args = tc.args as Record<string, string>;
-                      const { title, day, time, reason, date } = args;
-                      return (
-                        <div key={idx} className="bg-white/50 dark:bg-zinc-900/50 border border-indigo-500/20 rounded-2xl p-4 shadow-sm">
-                          <div className="flex items-start gap-4">
-                             <div className="w-12 h-12 rounded-xl bg-indigo-600/10 flex flex-col items-center justify-center text-indigo-600 border border-indigo-600/20 shrink-0">
-                                <Calendar className="w-5 h-5 mb-0.5" />
-                                <span className="text-[7px] font-black uppercase tracking-tighter">
-                                   {date ? date.split(' ')[0] : day?.substring(0, 3)}
-                                </span>
-                             </div>
-                             <div className="flex-1 min-w-0">
-                                <h5 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Scheduling Suggestion</h5>
-                                <p className="text-sm font-bold text-[var(--header-text)] truncate mb-1">{title}</p>
-                                <div className="flex flex-wrap gap-x-4 gap-y-1">
-                                   <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--muted-text)]">
-                                      <Calendar className="w-3 h-3 text-indigo-400" />
-                                      {day}{date ? `, ${date}` : ''}
-                                   </div>
-                                   <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--muted-text)]">
-                                      <Clock className="w-3 h-3 text-indigo-400" />
-                                      {time}
-                                   </div>
+               {isToolsExpanded && (
+                 <div className="mt-4 animate-in slide-in-from-top-2 duration-300">
+                    {/* ... details move here ... */}
+                   <div className="space-y-2 mb-4">
+                     {pendingToolCalls.map((tc, idx) => {
+                        const isScheduleItem = tc.name === 'add_plan_item';
+                        
+                        if (isScheduleItem) {
+                          const args = tc.args as Record<string, string>;
+                          const { title, day, time, reason, date } = args;
+                          return (
+                            <div key={idx} className="bg-[var(--card-bg)] border border-indigo-500/20 rounded-2xl p-4 shadow-sm">
+                              <div className="flex items-start gap-4">
+                                 <div className="w-12 h-12 rounded-xl bg-indigo-600/10 flex flex-col items-center justify-center text-indigo-600 border border-indigo-600/20 shrink-0">
+                                    <Brain className="w-5 h-5 mb-0.5" />
+                                    <span className="text-[7px] font-black uppercase tracking-tighter">
+                                       {date ? date.split(' ')[0] : day?.substring(0, 3)}
+                                    </span>
+                                 </div>
+                                 <div className="flex-1 min-w-0">
+                                    <h5 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Scheduling Suggestion</h5>
+                                    <p className="text-sm font-bold text-[var(--header-text)] truncate mb-1">{title}</p>
+                                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                       <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--muted-text)]">
+                                          <Zap className="w-3 h-3 text-indigo-400" />
+                                          {day}{date ? `, ${date}` : ''}
+                                       </div>
+                                       <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--muted-text)]">
+                                          <Zap className="w-3 h-3 text-indigo-400" />
+                                          {time}
+                                       </div>
+                                    </div>
+                                 </div>
+                              </div>
+                              {reason && (
+                                <div className="mt-3 pt-3 border-t border-indigo-500/10 text-[10px] text-[var(--muted-text)] italic leading-relaxed">
+                                   &ldquo;{reason}&rdquo;
                                 </div>
-                             </div>
-                          </div>
-                          {reason && (
-                            <div className="mt-3 pt-3 border-t border-indigo-500/10 text-[10px] text-[var(--muted-text)] italic leading-relaxed">
-                               &ldquo;{reason}&rdquo;
+                              )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    }
+                          );
+                        }
 
-                    return (
-                      <div key={idx} className="text-xs bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-3">
-                        <p className="font-bold text-[var(--header-text)] mb-1 font-mono">{tc.name}</p>
-                        <pre className="text-[10px] text-[var(--muted-text)] whitespace-pre-wrap font-mono overflow-hidden">
-                          {JSON.stringify(tc.args, null, 2)}
-                        </pre>
-                      </div>
-                    );
-                  })}
-               </div>
+                        return (
+                          <div key={idx} className="text-xs bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-3">
+                            <p className="font-bold text-[var(--header-text)] mb-1 font-mono">{tc.name}</p>
+                            <pre className="text-[10px] text-[var(--muted-text)] whitespace-pre-wrap font-mono overflow-hidden">
+                              {JSON.stringify(tc.args, null, 2)}
+                            </pre>
+                          </div>
+                        );
+                      })}
+                   </div>
 
-               {toolApprovalStatus === 'pending' && onResume && (
-                 <div className="flex items-center gap-2">
-                   <button 
-                     onClick={() => onResume('approve')}
-                     className="flex-1 py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black uppercase tracking-widest transition-all"
-                   >
-                     Approve
-                   </button>
-                   <button 
-                     onClick={() => onResume('reject')}
-                     className="flex-1 py-2 px-4 rounded-xl bg-[var(--card-bg)] hover:bg-red-500/10 text-[var(--muted-text)] hover:text-red-500 border border-[var(--card-border)] text-[11px] font-black uppercase tracking-widest transition-all"
-                   >
-                     Reject
-                   </button>
+                   {/* All execution controls are now in the header */}
                  </div>
                )}
             </div>

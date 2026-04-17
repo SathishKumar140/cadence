@@ -465,7 +465,12 @@ Please analyze where this fits best in my current plan.`;
             {!isStreaming ? (
               <div className="flex items-center gap-1.5 px-2 py-1 bg-indigo-500/5 border border-indigo-500/20 rounded-lg">
                  <Globe className="w-2.5 h-2.5 text-indigo-500" />
-                 <span className="text-[8px] font-black text-indigo-500 uppercase tracking-tighter">Strategic Context Active</span>
+                 <span className="text-[8px] font-black text-indigo-500 uppercase tracking-tighter">
+                   {activeView === 'discovery_engine' ? 'Discovery Context Active' : 
+                    activeView === 'linkedin_composer' ? 'Social Pulse Active' : 
+                    activeView === 'tactical_timeline' ? 'Tactical Context Active' : 
+                    'Strategic Context Active'}
+                 </span>
               </div>
             ) : (
               <div /> // Spacer

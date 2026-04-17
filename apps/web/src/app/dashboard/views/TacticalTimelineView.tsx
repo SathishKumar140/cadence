@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WeeklyPlanItem, useDashboard } from '../DashboardContext';
+import { resolveItemDate, getDiffDays } from '../TimeUtils';
 
 export default function TacticalTimelineView({ data: viewData }: { data?: Record<string, any> }) {
   const { plan, setActiveView } = useDashboard();
@@ -24,49 +25,19 @@ export default function TacticalTimelineView({ data: viewData }: { data?: Record
     }
   }, [viewData]);
 
-  // Helper to resolve an item's absolute date
-  const resolveItemDate = (item: WeeklyPlanItem, weekOffset: number) => {
-    if (item.date && !isNaN(new Date(item.date).getTime())) {
-      return item.date;
-    }
-
-    // Legacy fallback: Resolution based on current week start
-    const now = new Date();
-    const startOfTargetWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    // Adjust to Monday of the target week
-    const currentDay = startOfTargetWeek.getDay(); // 0 (Sun) to 6 (Sat)
-    const daysToMonday = currentDay === 0 ? -6 : 1 - currentDay;
-    startOfTargetWeek.setDate(startOfTargetWeek.getDate() + daysToMonday + (weekOffset * 7));
-
-    const weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-    const targetIdx = weekdays.indexOf(item.day?.toLowerCase() || "");
-    
-    if (targetIdx !== -1) {
-      const resolvedDate = new Date(startOfTargetWeek);
-      resolvedDate.setDate(resolvedDate.getDate() + targetIdx);
-      return resolvedDate.toISOString().split('T')[0];
-    }
-
-    return 'TBA';
-  };
-
   // Group and Sort Logic
   const processedGroups = useMemo(() => {
     const groups: Record<string, WeeklyPlanItem[]> = {};
     
-    // 1. Group items by resolved date
+    // 1. Group items by resolved date (Shared utility)
     plan.forEach(item => {
-      const dateKey = resolveItemDate(item, selectedWeek);
+      const dateKey = resolveItemDate(item);
       if (!groups[dateKey]) groups[dateKey] = [];
       groups[dateKey].push(item);
     });
 
-    // 2. Filter for selected week if not Tactical Overview (selectedWeek === 2)
+    // 2. Filter for selected window
     const filteredGroups: Record<string, WeeklyPlanItem[]> = {};
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const msInDay = 24 * 60 * 60 * 1000;
 
     Object.keys(groups).forEach(dateStr => {
       if (dateStr === 'TBA') {
@@ -79,10 +50,9 @@ export default function TacticalTimelineView({ data: viewData }: { data?: Record
         return;
       }
 
-      const itemTime = new Date(dateStr).getTime();
-      const diffDays = Math.floor((itemTime - startOfToday) / msInDay);
+      const diffDays = getDiffDays(dateStr);
 
-      if (selectedWeek === 0 && diffDays >= -7 && diffDays < 7) {
+      if (selectedWeek === 0 && diffDays >= 0 && diffDays < 7) {
         filteredGroups[dateStr] = groups[dateStr];
       } else if (selectedWeek === 1 && diffDays >= 7 && diffDays < 14) {
         filteredGroups[dateStr] = groups[dateStr];
@@ -154,7 +124,7 @@ export default function TacticalTimelineView({ data: viewData }: { data?: Record
           </div>
 
           <div className="flex items-center bg-[var(--card-bg)] border border-[var(--card-border)] p-1.5 rounded-xl shadow-sm backdrop-blur-md shrink-0">
-            {['This Week', 'Next Week', 'Tactical Overview'].map((tab, idx) => (
+            {['Next 7 Days', 'Extended Horizon', 'Tactical Overview'].map((tab, idx) => (
               <button
                 key={tab}
                 onClick={() => setSelectedWeek(idx)}
@@ -275,7 +245,7 @@ export default function TacticalTimelineView({ data: viewData }: { data?: Record
                    </div>
                    <div>
                       <h3 className="text-lg font-black text-[var(--header-text)] italic uppercase tracking-tight">Timeline Quiescent</h3>
-                      <p className="text-[9px] uppercase font-black tracking-widest text-[var(--muted-text)] opacity-40 mt-1">No upcoming tactical maneuvers detected</p>
+                      <p className="text-[9px] uppercase font-black tracking-widest text-[var(--muted-text)] opacity-40 mt-1">No upcoming tactical maneuvers detected in the {selectedWeek === 0 ? 'Next 7 Days' : 'Target Window'}</p>
                    </div>
                 </div>
               )}

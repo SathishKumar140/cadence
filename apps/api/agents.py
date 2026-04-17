@@ -152,8 +152,11 @@ async def discovery_agent_node(state: AgentState):
     
     # Try fetching real events first
     try:
+        from location_utils import resolve_user_location
+        location = resolve_user_location(user_id, db) or ""
+
         service = EventDiscoveryService()
-        discovered = await service.discover(interests, "San Francisco") # City should be dynamic from profile
+        discovered = await service.discover(interests, location)
         if discovered:
             return {"discovered_events": discovered[:10]}
     except Exception as e:

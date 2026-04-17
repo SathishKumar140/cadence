@@ -32,32 +32,10 @@ async def scout_local_events(query: str, location: str = None) -> str:
             eb_key = integration.access_token
 
         if not target_location:
-            pref = db.query(models.UserPreference).filter(
-                models.UserPreference.user_id == user_id
-            ).first()
-            if pref and pref.location:
-                loc_data = pref.location
-                if isinstance(loc_data, dict):
-                    target_location = loc_data.get("city") or loc_data.get("name")
-                else:
-                    target_location = str(loc_data)
-                if target_location:
-                    source_info = f" (using your profile location: {target_location})"
-
-        if not target_location:
-            recent_events = db.query(models.CalendarEvent).filter(
-                models.CalendarEvent.user_id == user_id,
-                models.CalendarEvent.location.isnot(None)
-            ).order_by(models.CalendarEvent.start_time.desc()).limit(10).all()
-
-            for ev in recent_events:
-                if ev.location and "," in ev.location:
-                    target_location = ev.location.split(",")[-1].strip()
-                    source_info = f" (inferred from your calendar)"
-                    break
-                elif ev.location and len(ev.location) > 2:
-                    target_location = ev.location
-                    break
+            from location_utils import resolve_user_location
+            target_location = resolve_user_location(user_id, db)
+            if target_location:
+                source_info = f" (dynamically detected location: {target_location})"
 
     if not target_location:
         return "I don't have a location for you. Which city should I search in?"

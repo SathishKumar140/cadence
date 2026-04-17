@@ -25,7 +25,7 @@ def get_next_weekday_date(day_name: str, start_from: datetime = None) -> str:
 
 @tool
 def get_weekly_plan() -> str:
-    """Fetch the user's current schedule/plan for the next 4 weeks including item IDs, titles, dates, and times."""
+    """Fetch the user's strategic plan for the Next 7 Days (strictly chronological). Includes item IDs, titles, absolute dates, and times."""
     from skills.schedule_manager._context import CURRENT_USER_ID
     with SessionLocal() as db:
         cached = db.query(models.DashboardCache).filter(
@@ -34,12 +34,16 @@ def get_weekly_plan() -> str:
         if not cached or not cached.weekly_plan:
             return "Your plan is currently empty."
         
+        # Atomic Chronological Sorting (Primary: Date, Secondary: Time)
+        items = list(cached.weekly_plan)
+        items.sort(key=lambda x: (x.get("date") or "9999-12-31", x.get("time") or "00:00"))
+
         return json.dumps({
             "status": "success",
-            "items": cached.weekly_plan,
+            "items": items,
             "ui_directive": {
                 "view": "all_events",
-                "data": {"items": cached.weekly_plan}
+                "data": {"items": items}
             }
         })
 
@@ -254,9 +258,8 @@ async def generate_priority_weekly_plan(target_week: str = "current", force_scou
         
         pref = db.query(models.UserPreference).filter(models.UserPreference.user_id == user_id).first()
         interests = pref.interests if pref and pref.interests else []
-        location = "San Francisco" 
-        if pref and pref.location:
-             location = pref.location.get("city") or pref.location.get("name") or location
+        from location_utils import resolve_user_location
+        location = resolve_user_location(user_id, db) or ""
 
     if not interests:
         return "I don't have any interests set for you. Please tell me what you're into first!"
@@ -344,6 +347,9 @@ async def generate_priority_weekly_plan(target_week: str = "current", force_scou
         flag_modified(cached, "weekly_plan")
         flag_modified(cached, "insights")
         db.commit()
+        
+        # CAPTURE DATA BEFORE SESSION CLOSES
+        final_insights = cached.insights
 
     return json.dumps({
         "status": "success",
@@ -353,7 +359,7 @@ async def generate_priority_weekly_plan(target_week: str = "current", force_scou
             "action": "sync", 
             "data": {
                 "plan": proposed_plan,
-                "insights": cached.insights,
+                "insights": final_insights,
                 "selected_week_index": selected_week_index
             }
         }
