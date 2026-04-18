@@ -13,6 +13,8 @@ import DiscoveriesView from './views/DiscoveriesView';
 import ReviewCenterView from './views/ReviewCenterView';
 import KnowledgeHubView from './views/KnowledgeHubView';
 import TacticalTimelineView from './views/TacticalTimelineView';
+import TravelPlannerView from './views/TravelPlannerView';
+import TravelSetupView from './views/TravelSetupView';
 
 export default function DynamicViewCanvas() {
   const { activeView, viewData } = useDashboard();
@@ -39,6 +41,10 @@ export default function DynamicViewCanvas() {
         return <KnowledgeHubView />;
       case 'all_events':
         return <TacticalTimelineView data={viewData || {}} />;
+      case 'travel_planner':
+        return <TravelPlannerView data={viewData as any} />;
+      case 'travel_setup':
+        return <TravelSetupView data={viewData as any} />;
       default:
         return <ScheduleView />;
     }

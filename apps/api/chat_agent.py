@@ -77,7 +77,13 @@ MANDATORY PROTOCOL (HIGHEST PRIORITY):
 6. DATE SPECIFICITY: Every scheduled event MUST have an exact ISO date (YYYY-MM-DD). If the user uses a relative day name (e.g. "this Friday" or "next Tuesday"), you MUST calculate the absolute date before calling tools.
 6. CONTEXT UTILIZATION: If the user asks to "add" or "schedule" an item you just found, call 'add_plan_item' immediately using that pre-found data. Do NOT ask for it again.
 7. DYNAMIC UI ENGAGEMENT: Whenever the user asks to see their schedule, patterns, or "all events", trigger the 'all_events' view (Tactical Timeline).
-8. COMPLETION CONFIRMATION: Always provide a brief conversational response after a tool executes.
+8. TRAVEL PLANNING: 
+    - If Duration, Pace, or Interests are missing: Use `open_travel_planner_configurator`.
+    - Once details are known: Use `scout_travel_plans`.
+    - You are PROHIBITED from asking these questions in chat text. Use the tools.
+9. COMPLETION CONFIRMATION: Always provide a brief conversational response after a tool executes.
+10. TRAVEL PLANNER: When the user confirms their settings in the setup panel, they will send a 'Params' block. Parse this and call `scout_travel_plans` immediately.
+
 
 GENERAL GOALS:
 Your goal is to help the user manage their time, scout for relevant trends, and optimize their weekly layout through high-priority tactical planning.
@@ -125,6 +131,7 @@ def create_chat_agent(user_id: str, provider: str = None, api_key: str = None):
         "get_pending_actions_for_review",
         "scout_for_updates",
         "scout_local_events",
+        "scout_travel_plans",
         "list_scheduled_emails",
         "list_goals",
         "suggest_ai_goals",
@@ -134,7 +141,8 @@ def create_chat_agent(user_id: str, provider: str = None, api_key: str = None):
         "get_weekly_plan",
         "find_available_slots",
         "suggest_optimal_slot",
-        "get_tactical_summary"
+        "get_tactical_summary",
+        "open_travel_planner_configurator"
     ]
     
     def wrap_tool(t):
@@ -277,6 +285,11 @@ def set_agent_context(user_id: str):
         import skills.event_scout._context as es_ctx
         es_ctx.CURRENT_USER_ID = user_id
     except: pass
+    
+    try:
+        import skills.travel_planner._context as tp_ctx
+        tp_ctx.CURRENT_USER_ID = user_id
+    except: pass
 
 def get_premium_thinking_title(tool_name: str) -> str:
     """Map technical tool names to premium tactical headers."""
@@ -377,12 +390,33 @@ async def run_chat_agent_stream(user_id: str, message: str, db: Session, history
     # We must properly handle interruption
     async for event in agent.astream(state, config, stream_mode="updates"):
         for node, data in event.items():
-            if node == "tools":
+            if node == "__interrupt__":
+                # The agent hit our interrupt() wrapper
+                for intr in data:
+                    val = intr.value
+                    if isinstance(val, dict) and val.get("action") == "approval_required":
+                         # Yield approval to UI. Generate a mock ID for the UI if missing
+                         yield {
+                             "type": "approval_required",
+                             "tool_calls": [{
+                                 "id": intr.interrupt_id if hasattr(intr, "interrupt_id") else "unknown", 
+                                 "name": val.get("display_name", val["tool_name"]), 
+                                 "args": val["tool_args"],
+                                 "description": val.get("description", "")
+                             }]
+                         }
+            else:
+                yield {"type": "thinking", "content": f"Graph Node Update: {node}"}
+            
+                # Extract messages from any node (tools, agent, model, etc.)
                 msgs = data.get("messages", [])
-                tmsgs = msgs if isinstance(msgs, list) else [msgs]
-                for tmsg in tmsgs:
-                    if isinstance(tmsg, ToolMessage):
-                        content = tmsg.content
+                msgs_list = msgs if isinstance(msgs, list) else [msgs]
+                
+                for msg in msgs_list:
+                    mtype = getattr(msg, "type", type(msg).__name__)
+                    # 1. Process ToolMessages for UI Directives and Mutations
+                    if isinstance(msg, ToolMessage) or mtype == "tool":
+                        content = flatten_content(msg.content)
                         
                         # Handle deep_think
                         if content.startswith("DEEP_THINK_REQUESTED:"):
@@ -395,7 +429,14 @@ async def run_chat_agent_stream(user_id: str, message: str, db: Session, history
                             continue
 
                         try:
-                            res_obj = json.loads(content)
+                            # Robust JSON extraction: handle markdown blocks if they exist
+                            clean_content = content.strip()
+                            if "```json" in clean_content:
+                                clean_content = clean_content.split("```json")[-1].split("```")[0].strip()
+                            elif "```" in clean_content:
+                                clean_content = clean_content.split("```")[-1].split("```")[0].strip()
+                                
+                            res_obj = json.loads(clean_content)
                             if isinstance(res_obj, dict):
                                 if "mutation" in res_obj:
                                     yield {"type": "mutation", "data": res_obj["mutation"]}
@@ -416,37 +457,20 @@ async def run_chat_agent_stream(user_id: str, message: str, db: Session, history
                                         }
                         except Exception:
                             pass
+                    
+                    # 2. Process AIMessages for Streaming Text and Thinking Titles
+                    elif isinstance(msg, AIMessage):
+                        tcalls = getattr(msg, "tool_calls", [])
+                        if tcalls:
+                            for tc in tcalls:
+                                tname = tc.get("name") if isinstance(tc, dict) else getattr(tc, "function", {}).get("name", "unknown")
+                                yield {"type": "thinking_title", "content": get_premium_thinking_title(tname)}
+                                yield {"type": "thinking", "content": f"Using {tname}..."}
+                        elif msg.content:
+                            flattened = flatten_content(msg.content)
+                            if flattened:
+                                yield {"type": "response", "content": flattened}
 
-            elif "messages" in data or node == "model":
-                msgs = data.get("messages", [])
-                msgs_list = msgs if isinstance(msgs, list) else [msgs]
-                if msgs_list:
-                    last_msg = msgs_list[-1]
-                    tcalls = getattr(last_msg, "tool_calls", [])
-                    if tcalls:
-                        for tc in tcalls:
-                            tname = tc.get("name") if isinstance(tc, dict) else getattr(tc, "function", {}).get("name", "unknown")
-                            yield {"type": "thinking_title", "content": get_premium_thinking_title(tname)}
-                            yield {"type": "thinking", "content": f"Using {tname}..."}
-                    elif isinstance(last_msg, AIMessage) and last_msg.content:
-                        flattened = flatten_content(last_msg.content)
-                        if flattened:
-                            yield {"type": "response", "content": flattened}
-            elif node == "__interrupt__":
-                # The agent hit our interrupt() wrapper
-                for intr in data:
-                    val = intr.value
-                    if isinstance(val, dict) and val.get("action") == "approval_required":
-                         # Yield approval to UI. Generate a mock ID for the UI if missing
-                         yield {
-                             "type": "approval_required",
-                             "tool_calls": [{
-                                 "id": intr.interrupt_id if hasattr(intr, "interrupt_id") else "unknown", 
-                                 "name": val.get("display_name", val["tool_name"]), 
-                                 "args": val["tool_args"],
-                                 "description": val.get("description", "")
-                             }]
-                         }
     
 async def clear_session(user_id: str):
     """Wipe the agent's memory and cache for a focused restart."""

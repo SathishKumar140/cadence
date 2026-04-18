@@ -335,6 +335,17 @@ Please analyze where this fits best in my current plan.`;
   }, [handleSend]);
 
   useEffect(() => {
+    const handlePlanInit = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      const { prompt } = detail;
+      handleSend(undefined, prompt);
+    };
+
+    window.addEventListener('cadence:initiate_travel_plan', handlePlanInit);
+    return () => window.removeEventListener('cadence:initiate_travel_plan', handlePlanInit);
+  }, [handleSend]);
+
+  useEffect(() => {
     if (chatEndRef.current) {
         chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
