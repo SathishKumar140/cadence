@@ -16,6 +16,7 @@ interface TravelSetupViewProps {
       duration_days?: number;
       trip_pace?: string;
       interests?: string[];
+      included_stops?: string[];
     };
   };
 }
@@ -40,6 +41,7 @@ export default function TravelSetupView({ data }: TravelSetupViewProps) {
   const [days, setDays] = useState(data?.prefill?.duration_days || 3);
   const [pace, setPace] = useState(data?.prefill?.trip_pace || 'Balanced');
   const [interests, setInterests] = useState<string[]>(data?.prefill?.interests || []);
+  const [includedStops] = useState<string[]>(data?.prefill?.included_stops || []);
 
   // Reset generating state if view changes
   useEffect(() => {
@@ -63,6 +65,7 @@ Params:
 - Duration: ${days} days
 - Pace: ${pace}
 - Interests: ${interests.join(', ')}
+${includedStops.length > 0 ? `- Included Stops: ${includedStops.join(', ')}` : ''}
 
 Please call the scout_travel_plans tool with these details.`;
 
@@ -99,6 +102,15 @@ Please call the scout_travel_plans tool with these details.`;
               <h1 className="text-3xl md:text-5xl font-black text-[var(--header-text)] italic tracking-tighter uppercase leading-none">
                 Destination: {destination}
               </h1>
+              {includedStops.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3 mb-1">
+                  {includedStops.map(stop => (
+                    <span key={stop} className="px-2 py-0.5 bg-indigo-500/5 border border-indigo-500/10 rounded text-[8px] font-black text-indigo-500/60 uppercase tracking-widest">
+                      Incl. {stop}
+                    </span>
+                  ))}
+                </div>
+              )}
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2">
                 Configure your travel preferences
               </p>

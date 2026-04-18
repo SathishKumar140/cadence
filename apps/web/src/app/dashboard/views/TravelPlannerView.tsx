@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { 
   Plane, Building, MapPin, Calendar, Sun, 
   Palmtree, ArrowRight, ExternalLink, Sparkles, 
-  CheckCircle, Plus, Info, Clock, Map, ChevronRight
+  CheckCircle, Plus, Info, Clock, Map, ChevronRight, Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../DashboardContext';
@@ -14,6 +14,7 @@ interface Flight {
   price: string;
   layovers: string;
   duration: string;
+  booking_url?: string;
 }
 
 interface Hotel {
@@ -21,22 +22,28 @@ interface Hotel {
   price_per_night: string;
   rating: string;
   area: string;
+  image_url?: string;
+  booking_url?: string;
 }
 
 interface ItineraryDay {
   day: number;
   title: string;
+  image_url?: string;
   activities: string[];
 }
 
 interface TravelPlannerViewProps {
   data: {
-    destination?: string;
-    origin?: string;
-    dates?: string;
-    insights?: {
+    duration_days: number;
+    trip_pace: string;
+    interests: string[];
+    included_stops?: string[];
+    hero_image?: string;
+    insights: {
       season?: string;
       festivals?: string[];
+      route_logic?: string;
     };
     flights?: Flight[];
     hotels?: Hotel[];
@@ -50,6 +57,7 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
   const [selectedHotel, setSelectedHotel] = useState<number | null>(null);
   const [activeDay, setActiveDay] = useState<number>(1);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncSuccess, setSyncSuccess] = useState(false);
 
   const {
     destination = "Destination",
@@ -61,51 +69,65 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
     itinerary = []
   } = data || {};
 
-  // use global generic asset
-  const heroImage = "/travel_hero.png";
+  // use dynamic asset from props or fallback
+  const heroImage = data?.hero_image || "/travel_hero.png";
 
   const handleSyncToHub = async () => {
     if (selectedFlight === null && selectedHotel === null) return;
     
     setIsSyncing(true);
     
-    // Simulate mutation delay
-    setTimeout(() => {
-      const flight = flights[selectedFlight!];
-      const hotel = hotels[selectedHotel!];
-      
+    try {
+      const flight = selectedFlight !== null ? flights[selectedFlight] : null;
+      const hotel = selectedHotel !== null ? hotels[selectedHotel] : null;
+
       if (flight) {
         applyMutation({
           target: 'weekly_plan',
           action: 'add',
           data: {
-            title: `Flight to ${destination} (${flight.airline})`,
-            day: "Monday", // simplified
-            time: "10:00-18:00",
+            id: `flight-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            title: `Flight: ${flight.airline} to ${destination}`,
+            day: "Monday", 
+            time: "10:00",
             reason: "Confirmed travel booking",
+            location: destination,
             is_discovery: false
           }
         });
       }
-      
+
       if (hotel) {
         applyMutation({
           target: 'weekly_plan',
           action: 'add',
           data: {
-            title: `Stay at ${hotel.name}`,
+            id: `hotel-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            title: `Hotel: ${hotel.name}`,
             day: "Tuesday",
-            time: "14:00-11:00",
-            reason: "Confirmed accommodation",
+            time: "14:00",
+            reason: "Elite accommodation selection",
+            location: hotel.area,
             is_discovery: false
           }
         });
       }
+
+      setSyncSuccess(true);
       
+      // Delay navigation slightly to let the user see the success state
+      setTimeout(() => {
+        setIsSyncing(false);
+        setSyncSuccess(false);
+        setSelectedFlight(null);
+        setSelectedHotel(null);
+        setActiveView('schedule');
+      }, 1000);
+
+    } catch (err) {
+      console.error("Sync failed:", err);
       setIsSyncing(false);
-      setSelectedFlight(null);
-      setSelectedHotel(null);
-    }, 1500);
+    }
   };
 
   return (
@@ -137,16 +159,29 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
              <h1 className="text-4xl md:text-5xl font-black text-white italic tracking-tighter uppercase leading-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]">
                {destination}
              </h1>
-              <div className="flex items-center gap-3 text-white/90 font-bold uppercase tracking-[0.15em] text-[10px] mt-2">
+             {data.included_stops && data.included_stops.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {data.included_stops.map(stop => (
+                    <span key={stop} className="px-2 py-0.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded text-[8px] font-black text-white/70 uppercase tracking-widest leading-none">
+                      Incl. {stop}
+                    </span>
+                  ))}
+                </div>
+             )}
+              <div className="flex flex-wrap items-center gap-3 text-white/90 font-bold uppercase tracking-[0.15em] text-[10px] mt-2">
                 <span className="flex items-center gap-1.5 bg-black/60 shadow-lg shadow-black/20 px-2 py-0.5 rounded backdrop-blur-sm">
                   <MapPin className="w-3 h-3 text-cyan-400" />
                   From {origin}
                 </span>
-                <div className="w-1 h-1 rounded-full bg-white/40" />
-                <span className="flex items-center gap-1.5 bg-black/60 shadow-lg shadow-black/20 px-2 py-0.5 rounded backdrop-blur-sm">
-                  <Calendar className="w-3 h-3 text-cyan-400" />
-                  {dates}
-                </span>
+                {insights.route_logic && (
+                  <>
+                    <div className="w-1 h-1 rounded-full bg-white/40" />
+                    <span className="flex items-center gap-2 bg-indigo-600 shadow-xl shadow-indigo-600/30 px-3 py-1 rounded-md text-white animate-in slide-in-from-left duration-500">
+                      <Zap className="w-3 h-3" />
+                      Strategic Route: {insights.route_logic}
+                    </span>
+                  </>
+                )}
               </div>
           </div>
         </div>
@@ -223,27 +258,43 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
                  exit={{ opacity: 0, scale: 1.02 }}
                  className="bg-indigo-600/5 border border-indigo-600/20 rounded-3xl p-8"
                >
-                 {itinerary.find(d => d.day === activeDay) && (
-                   <div className="space-y-6">
-                      <div className="flex items-center gap-4">
-                         <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white text-xl font-black">
-                           0{activeDay}
-                         </div>
-                         <div>
-                            <h4 className="text-xl font-black text-indigo-600 uppercase tracking-tight">{itinerary.find(d => d.day === activeDay)?.title}</h4>
-                            <p className="text-[10px] font-bold text-slate-400 tracking-[0.2em] uppercase mt-1">Daily Highlights</p>
-                         </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         {itinerary.find(d => d.day === activeDay)?.activities.map((act, i) => (
-                           <div key={i} className="flex items-center gap-4 bg-[var(--background)] p-5 rounded-2xl border border-[var(--card-border)] group hover:border-indigo-500/30 transition-colors">
-                              <Clock className="w-5 h-5 text-indigo-500 opacity-40" />
-                              <span className="text-sm font-bold text-[var(--header-text)]">{act}</span>
-                           </div>
-                         ))}
-                      </div>
-                   </div>
-                 )}
+                  {itinerary.find(d => d.day === activeDay) && (
+                    <div className="space-y-6">
+                       <div className="flex flex-col md:flex-row gap-6">
+                          {/* Daily Highlight Image */}
+                          {itinerary.find(d => d.day === activeDay)?.image_url && (
+                            <div className="w-full md:w-1/3 h-[200px] rounded-2xl overflow-hidden shadow-lg border border-white/10 shrink-0">
+                               <img 
+                                 src={itinerary.find(d => d.day === activeDay)?.image_url} 
+                                 className="w-full h-full object-cover" 
+                                 alt={itinerary.find(d => d.day === activeDay)?.title}
+                               />
+                            </div>
+                          )}
+                          
+                          <div className="flex-1 space-y-4">
+                            <div className="flex items-center gap-4">
+                               <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white text-xl font-black shadow-lg shadow-indigo-600/20">
+                                 0{activeDay}
+                               </div>
+                               <div>
+                                  <h4 className="text-xl font-black text-indigo-600 uppercase tracking-tight">{itinerary.find(d => d.day === activeDay)?.title}</h4>
+                                  <p className="text-[10px] font-bold text-slate-400 tracking-[0.2em] uppercase mt-1">Daily Highlights</p>
+                               </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 gap-3">
+                               {itinerary.find(d => d.day === activeDay)?.activities.map((act, i) => (
+                                 <div key={i} className="flex items-center gap-4 bg-[var(--background)] p-4 rounded-2xl border border-[var(--card-border)] group hover:border-indigo-500/30 transition-colors shadow-sm">
+                                    <Clock className="w-4 h-4 text-indigo-500 opacity-40 shrink-0" />
+                                    <span className="text-sm font-bold text-[var(--header-text)]">{act}</span>
+                                 </div>
+                               ))}
+                            </div>
+                          </div>
+                       </div>
+                    </div>
+                  )}
                </motion.div>
              </AnimatePresence>
           </section>
@@ -259,41 +310,61 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
               </h2>
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Select to Sync</span>
             </div>
-            <div className="space-y-4">
+            <div className="flex flex-col gap-6">
               {flights.map((flight, idx) => (
                 <motion.div 
                   key={idx}
                   onClick={() => setSelectedFlight(selectedFlight === idx ? null : idx)}
-                  whileTap={{ scale: 0.98 }}
-                  className={`relative group cursor-pointer border-2 transition-all p-6 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-6 ${
+                  whileHover={{ x: 8 }}
+                  className={`relative group cursor-pointer border transition-all rounded-[1.5rem] overflow-hidden flex flex-col md:flex-row items-center gap-0 ${
                     selectedFlight === idx 
-                      ? 'bg-cyan-500/10 border-cyan-500 shadow-xl shadow-cyan-500/10' 
-                      : 'bg-[var(--card-bg)] border-[var(--card-border)] hover:border-cyan-500/30'
+                      ? 'border-cyan-500 bg-cyan-500/[0.03] shadow-2xl shadow-cyan-500/10' 
+                      : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800'
                   }`}
                 >
-                  {selectedFlight === idx && (
-                    <div className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-cyan-600 flex items-center justify-center text-white shadow-lg z-20">
-                      <CheckCircle className="w-5 h-5" />
-                    </div>
-                  )}
-                  
-                  <div className="flex items-center gap-5 w-full">
-                    <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-zinc-800 flex items-center justify-center border border-[var(--card-border)] shadow-inner">
-                      <Plane className="w-7 h-7 text-slate-400" />
+                  {/* Left Section: Airline Info */}
+                  <div className="p-6 flex items-center gap-6 flex-1 min-w-[280px]">
+                    <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-zinc-800 flex items-center justify-center border border-slate-100 dark:border-zinc-700 shadow-inner group-hover:scale-110 transition-transform">
+                      <Plane className="w-8 h-8 text-cyan-500" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-black text-xl text-[var(--header-text)] tracking-tight uppercase leading-none">{flight.airline}</h4>
-                      <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-3">
-                        <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> {flight.duration}</span>
-                        <div className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
+                      <h4 className="font-black text-2xl text-slate-800 dark:text-slate-100 tracking-tighter uppercase leading-none">{flight.airline}</h4>
+                      <div className="flex items-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mt-3">
+                        <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-cyan-500/60" /> {flight.duration}</span>
+                        <div className="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700" />
                         <span className={flight.layovers.toLowerCase().includes('direct') ? 'text-emerald-500' : 'text-amber-500'}>{flight.layovers}</span>
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto mt-2 sm:mt-0 pt-4 sm:pt-0 border-t sm:border-0 border-[var(--card-border)]">
-                    <span className="text-3xl font-black text-cyan-600">{flight.price}</span>
-                    <span className="text-[9px] uppercase tracking-widest font-black text-slate-400 opacity-60">P.P / Total</span>
+
+                  {/* Divider (Dashed for Ticket Feel) */}
+                  <div className="hidden md:block w-[1px] h-20 border-l-2 border-dashed border-slate-200 dark:border-zinc-800 self-center opacity-50" />
+
+                  {/* Right Section: Price & Actions */}
+                  <div className="p-6 md:w-[240px] flex md:flex-col items-center justify-between gap-4 bg-slate-50/50 dark:bg-zinc-800/20">
+                    <div className="text-right">
+                       <span className="text-3xl font-black text-cyan-600 block leading-none">{flight.price}</span>
+                       <span className="text-[9px] uppercase tracking-widest font-black text-slate-400 opacity-60">P.P / Seat</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                       {flight.booking_url && (
+                         <a 
+                           href={flight.booking_url} 
+                           target="_blank" 
+                           rel="noopener noreferrer"
+                           onClick={(e) => e.stopPropagation()}
+                           className="p-2.5 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-400 hover:text-cyan-500 hover:border-cyan-500/30 transition-all shadow-sm"
+                         >
+                           <ExternalLink className="w-4 h-4" />
+                         </a>
+                       )}
+                       <div className={`p-2.5 rounded-xl border transition-all ${
+                          selectedFlight === idx ? 'bg-cyan-600 text-white border-cyan-700' : 'bg-slate-100 dark:bg-zinc-700 text-slate-400 border-transparent'
+                       }`}>
+                          <CheckCircle className="w-4 h-4" />
+                       </div>
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -309,48 +380,72 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
               </h2>
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Live Quotes</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {hotels.map((hotel, idx) => (
                 <motion.div 
                   key={idx}
                   onClick={() => setSelectedHotel(selectedHotel === idx ? null : idx)}
-                  whileTap={{ scale: 0.98 }}
-                  className={`relative group cursor-pointer border-2 transition-all p-6 rounded-3xl flex flex-col justify-between min-h-[220px] ${
+                  whileHover={{ y: -8 }}
+                  className={`relative group cursor-pointer border transition-all rounded-[2rem] overflow-hidden flex flex-col ${
                     selectedHotel === idx 
-                      ? 'bg-indigo-500/10 border-indigo-500 shadow-xl shadow-indigo-500/10' 
-                      : 'bg-[var(--card-bg)] border-[var(--card-border)] hover:border-indigo-500/30'
+                      ? 'border-indigo-500 bg-indigo-500/[0.03] shadow-2xl shadow-indigo-500/10' 
+                      : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800'
                   }`}
                 >
-                  {selectedHotel === idx && (
-                    <div className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-lg z-20">
-                      <CheckCircle className="w-5 h-5" />
+                  {/* Hotel Image Hub */}
+                  <div className="relative h-[200px] w-full overflow-hidden">
+                    <img 
+                      src={hotel.image_url || `https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80`} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                      alt={hotel.name}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    
+                    <div className="absolute top-4 right-4 flex gap-2">
+                       <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-xl border border-white/20">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                          <span className="text-[10px] font-black text-slate-800 dark:text-slate-100 uppercase">{hotel.rating}</span>
+                       </div>
                     </div>
-                  )}
 
-                  <div className="space-y-4">
-                     <div className="flex justify-between items-start">
-                        <div className="flex flex-col gap-1">
-                          <h4 className="font-black text-[var(--header-text)] leading-none uppercase text-lg tracking-tight">{hotel.name}</h4>
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mt-2">
-                            <MapPin className="w-3 h-3 text-indigo-500" />
-                            {hotel.area}
-                          </span>
-                        </div>
-                     </div>
-                     <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                        <Sparkles className="w-3 h-3 text-amber-600" />
-                        <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">{hotel.rating}</span>
-                     </div>
+                    <div className="absolute bottom-4 left-4 right-4">
+                       <h4 className="font-black text-white text-xl uppercase tracking-tighter leading-tight drop-shadow-md">{hotel.name}</h4>
+                    </div>
                   </div>
-                  
-                  <div className="flex items-end justify-between border-t border-[var(--card-border)] pt-4 mt-6">
-                     <div className="flex flex-col">
-                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Nightly Rate</span>
-                       <span className="text-2xl font-black text-[var(--header-text)]">{hotel.price_per_night}</span>
-                     </div>
-                     <button className="p-2.5 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                       <ExternalLink className="w-4 h-4" />
-                     </button>
+
+                  <div className="p-6 flex flex-col justify-between flex-1">
+                    <div className="space-y-4">
+                       <div className="flex items-center gap-2 text-[10px] font-black text-indigo-500/60 uppercase tracking-[0.2em]">
+                          <MapPin className="w-3.5 h-3.5" />
+                          {hotel.area}
+                       </div>
+                    </div>
+                    
+                    <div className="flex items-end justify-between border-t border-slate-100 dark:border-zinc-800/50 pt-5 mt-6">
+                       <div className="flex flex-col">
+                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 opacity-60">Nightly Executive Rate</span>
+                         <span className="text-3xl font-black text-slate-800 dark:text-slate-100 italic leading-none">{hotel.price_per_night}</span>
+                       </div>
+                       
+                       <div className="flex items-center gap-2">
+                          {hotel.booking_url && (
+                             <a 
+                               href={hotel.booking_url} 
+                               target="_blank" 
+                               rel="noopener noreferrer"
+                               onClick={(e) => e.stopPropagation()}
+                               className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-white border border-indigo-700 hover:border-indigo-500/20 text-white hover:text-indigo-600 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20 hover:shadow-none"
+                             >
+                               Source
+                             </a>
+                          )}
+                          <div className={`p-2.5 rounded-xl border transition-all ${
+                             selectedHotel === idx ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-slate-100 dark:bg-zinc-800 text-slate-400 border-transparent'
+                          }`}>
+                             <CheckCircle className="w-4 h-4" />
+                          </div>
+                       </div>
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -387,14 +482,23 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
 
               <button 
                 onClick={handleSyncToHub}
-                disabled={isSyncing}
-                className="flex items-center gap-3 bg-white text-black px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-emerald-400 transition-all disabled:opacity-50"
+                disabled={isSyncing || syncSuccess}
+                className={`flex items-center gap-3 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
+                  syncSuccess 
+                    ? 'bg-emerald-500 text-white' 
+                    : 'bg-white text-black hover:bg-emerald-400 disabled:opacity-50'
+                }`}
               >
                 {isSyncing ? (
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                    <span>Syncing...</span>
+                    <span>Processing...</span>
                   </div>
+                ) : syncSuccess ? (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Synced Successfully
+                  </>
                 ) : (
                   <>
                     <Plus className="w-4 h-4" />

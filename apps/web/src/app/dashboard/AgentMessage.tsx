@@ -23,48 +23,116 @@ interface AgentMessageProps {
   onResume?: (action: 'approve' | 'reject') => void;
 }
 
+const TacticalTable = ({ rows }: { rows: string[] }) => {
+  if (rows.length < 2) return null;
+  
+  // Extract header and body
+  const headerRow = rows[0];
+  const bodyRows = rows.slice(2);
+  
+  const parseRow = (row: string) => {
+    // Split by |, but avoid empty strings from the start/end pipes
+    const cells = row.split('|');
+    if (row.startsWith('|')) cells.shift();
+    if (row.endsWith('|')) cells.pop();
+    return cells.map(cell => cell.trim());
+  };
+
+  const headers = parseRow(headerRow);
+  const data = bodyRows.map(parseRow);
+
+  return (
+    <div className="my-[20px] overflow-hidden rounded-2xl border border-indigo-500/10 bg-black/5 dark:bg-white/5 backdrop-blur-sm shadow-xl">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-indigo-500/5 border-b border-indigo-500/10">
+            {headers.map((header, i) => (
+              <th key={i} className="px-5 py-4 text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">
+                {parseInline(header)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-indigo-500/5">
+          {data.map((row, i) => (
+            <tr key={i} className="hover:bg-indigo-500/[0.02] transition-colors">
+              {row.map((cell, j) => (
+                <td key={j} className="px-5 py-4 text-[12px] font-medium text-[var(--header-text)]">
+                  {parseInline(cell)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 const MarkdownText = ({ text }: { text: string }) => {
   if (!text) return null;
   
-  // Simple regex-based markdown parser for Elite tactical feel
   const lines = text.split('\n');
+  const renderedElements: React.ReactNode[] = [];
+  let currentTableRows: string[] = [];
+
+  const flushTable = (key: number) => {
+    if (currentTableRows.length > 0) {
+      renderedElements.push(<TacticalTable key={`table-${key}`} rows={[...currentTableRows]} />);
+      currentTableRows = [];
+    }
+  };
+
+  lines.forEach((line, i) => {
+    const trimmedLine = line.trim();
+    const isTableLine = trimmedLine.startsWith('|') && trimmedLine.endsWith('|');
+
+    if (isTableLine) {
+      currentTableRows.push(trimmedLine);
+    } else {
+      flushTable(i);
+      
+      // H3 Header
+      if (trimmedLine.startsWith('### ')) {
+        renderedElements.push(<h3 key={i} className="text-[14px] font-black text-[var(--header-text)] uppercase tracking-tight italic mt-4 mb-2">{parseInline(trimmedLine.substring(4))}</h3>);
+      }
+      // H2 Header
+      else if (trimmedLine.startsWith('## ')) {
+        renderedElements.push(<h2 key={i} className="text-[16px] font-black text-[var(--header-text)] uppercase tracking-tight italic mt-6 mb-3 border-b border-indigo-500/10 pb-1">{parseInline(trimmedLine.substring(3))}</h2>);
+      }
+      // H1 Header
+      else if (trimmedLine.startsWith('# ')) {
+        renderedElements.push(<h1 key={i} className="text-[18px] font-black text-indigo-500 uppercase tracking-tighter italic mt-8 mb-4">{parseInline(trimmedLine.substring(2))}</h1>);
+      }
+      // Bulleted lists
+      else if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
+        renderedElements.push(
+          <div key={i} className="flex gap-2 pl-2">
+            <span className="text-indigo-500 font-bold">•</span>
+            <span className="flex-1">{parseInline(trimmedLine.substring(2))}</span>
+          </div>
+        );
+      }
+      // Horizontal rule
+      else if (trimmedLine === '---') {
+        renderedElements.push(<hr key={i} className="my-4 border-[var(--card-border)] opacity-30" />);
+      }
+      // Blank lines
+      else if (trimmedLine === '') {
+        renderedElements.push(<div key={i} className="h-1" />);
+      }
+      // Normal line
+      else {
+        renderedElements.push(<div key={i} className="leading-relaxed">{parseInline(line)}</div>);
+      }
+    }
+  });
+
+  flushTable(lines.length);
+
   return (
-    <div className="space-y-2">
-      {lines.map((line, i) => {
-        const trimmedLine = line.trim();
-        
-        // H3 Header
-        if (trimmedLine.startsWith('### ')) {
-          return <h3 key={i} className="text-[14px] font-black text-[var(--header-text)] uppercase tracking-tight italic mt-4 mb-2">{parseInline(trimmedLine.substring(4))}</h3>;
-        }
-        
-        // H2 Header
-        if (trimmedLine.startsWith('## ')) {
-          return <h2 key={i} className="text-[16px] font-black text-[var(--header-text)] uppercase tracking-tight italic mt-6 mb-3 border-b border-indigo-500/10 pb-1">{parseInline(trimmedLine.substring(3))}</h2>;
-        }
-
-        // H1 Header
-        if (trimmedLine.startsWith('# ')) {
-          return <h1 key={i} className="text-[18px] font-black text-indigo-500 uppercase tracking-tighter italic mt-8 mb-4">{parseInline(trimmedLine.substring(2))}</h1>;
-        }
-
-        // Bulleted lists
-        if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
-          return (
-            <div key={i} className="flex gap-2 pl-2">
-              <span className="text-indigo-500 font-bold">•</span>
-              <span className="flex-1">{parseInline(trimmedLine.substring(2))}</span>
-            </div>
-          );
-        }
-        
-        // Horizontal rule
-        if (line.trim() === '---') {
-          return <hr key={i} className="my-4 border-[var(--card-border)] opacity-30" />;
-        }
-
-        return <div key={i}>{parseInline(line)}</div>;
-      })}
+    <div className="space-y-1.5">
+      {renderedElements}
     </div>
   );
 };
@@ -84,6 +152,7 @@ const parseInline = (text: string) => {
     return part;
   });
 };
+;
 
 export default function AgentMessage({ role, content, thinkingTitle, thinking, thinkingSteps, mutations, discoveries, promotion, uiDirective, metrics, pendingToolCalls, toolApprovalStatus, onResume }: AgentMessageProps) {
   const [isExpanded, setIsExpanded] = useState(false);

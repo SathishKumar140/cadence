@@ -18,7 +18,8 @@ async def scout_travel_plans(
     dates: str = "Upcoming", 
     duration_days: int = 3, 
     trip_pace: str = "Balanced", 
-    interests: List[str] = []
+    interests: List[str] = [],
+    included_stops: List[str] = []
 ) -> str:
     """
     Plan a travel itinerary, fetch flights, hotels, and the best time to visit using real-time search.
@@ -29,6 +30,7 @@ async def scout_travel_plans(
         duration_days (int): Number of days for the trip.
         trip_pace (str): The desired pace (Relaxed, Balanced, Fast-paced).
         interests (List[str]): Specific interests (e.g. ["Hiking", "Art"]).
+        included_stops (List[str]): Specific cities or regions to include in the trip (e.g. ["Shenzhen", "Chongqing"]).
     """
     user_id = _get_user_id()
     
@@ -49,13 +51,15 @@ async def scout_travel_plans(
     hotels_text = ""
     
     interests_str = ", ".join(interests) if interests else "Sightseeing, Culture"
+    stops_str = ", ".join(included_stops) if included_stops else ""
     
     if tavily_key and "placeholder" not in tavily_key:
         try:
             client = TavilyClient(api_key=tavily_key)
             
-            # Context 1: Destination insights (seasons, festivals)
-            res_insights = client.search(f"best time to visit {destination} festivals seasonal weather", max_results=2)
+            # Context 1: Destination insights (seasons, festivals) calibrated to dates
+            insight_query = f"festivals and events in {destination} during {dates} weather conditions"
+            res_insights = client.search(insight_query, max_results=3)
             insights_text = json.dumps([r['content'] for r in res_insights.get('results', [])])
             
             # Context 2: Flights
@@ -78,8 +82,10 @@ async def scout_travel_plans(
         prompt = f"""
         You are a JSON formatter for a travel agent. Analyze the following web search data and extract structured travel options.
         PERSONALIZATION PROFILE:
-        - Target: {destination}
+        - Primary Destination: {destination}
+        - Included Stops/Cities: {stops_str}
         - Duration: {duration_days} days
+        - Travel window: {dates}
         - Pace: {trip_pace}
         - Interests: {interests_str}
         
@@ -91,18 +97,44 @@ async def scout_travel_plans(
         {{
             "best_season": "Short description of the best time to visit and weather",
             "upcoming_festivals": ["Festival 1 (Month)", "Festival 2 (Month)"],
+            "hero_image_url": "A high-quality Unsplash image URL for the destination (e.g., https://images.unsplash.com/photo-XXX?auto=format&fit=crop&w=1200&q=80)",
+            "strategic_route_recommendation": "A brief explanation of why this city sequence was chosen for maximum efficiency (e.g., 'Entering via Shenzhen and exiting via Beijing saves 4 hours of domestic travel from Singapore')",
             "flights": [
-                {{"airline": "Airline Name", "price": "$X", "layovers": "Direct / 1 Stop", "duration": "XH YM"}}
+                {{"airline": "Airline Name", "price": "$X", "layovers": "Direct / 1 Stop", "duration": "XH YM", "booking_url": "Official portal URL"}}
             ],
             "hotels": [
-                {{"name": "Hotel Name", "price_per_night": "$Y", "rating": "4.5 Stars", "area": "Neighborhood"}}
+                {{"name": "Hotel Name", "price_per_night": "$Y", "rating": "4.5 Stars", "area": "Neighborhood", "image_url": "Unsplash hotel image URL", "booking_url": "Official portal URL"}}
             ],
             "suggested_itinerary": [
-                {{"day": 1, "title": "Exploring the Heart", "activities": ["Activity 1 (10:00 AM)", "Activity 2 (02:00 PM)"]}},
+                {{"day": 1, "title": "Day Title", "image_url": "Unsplash image URL", "activities": [
+                    "Breakfast: Local specialty at... (08:30 AM)",
+                    "Morning: Visiting X Landmark (10:00 AM) - [Tactical Tip: Arrive early to avoid crowds]",
+                    "Lunch: Hidden gem recommendation... (12:30 PM)",
+                    "Afternoon: Exploring Y District (02:30 PM)",
+                    "Evening: Dinner & Z View (07:00 PM)"
+                ]}},
                 ... (provide {duration_days} days total)
             ]
         }}
-        Provide exactly 3 flights, 3 hotels, and a {duration_days}-day itinerary matched to the specified pace and interests.
+        
+        GEOGRAPHICAL STRATEGY (CRITICAL):
+        1. Analyze the distance from {origin} to each stop ({destination}, {stops_str}).
+        2. Sequence the itinerary to minimize total travel distance and "zigzagging".
+        3. Optimize for Open-Jaw paths: If entering via one city and exiting via another is more efficient given {origin}, suggest that path in `strategic_route_recommendation` and the itinerary structure.
+        
+        TEMPORAL RELEVANCE (CRITICAL):
+        - If `{dates}` is not "Upcoming", you MUST prioritize festivals and events occurring during that specific window. 
+        - Tailor the `best_season` description to evaluate the suitability of the `{dates}` window specifically for this trip.
+        
+        ITINERARY DENSITY (CRITICAL):
+        - Each day MUST have at least 4-5 distinct activities covering Morning, Lunch, Afternoon, and Evening/Dinner. 
+        - DO NOT provide sparse 1-2 item lists. 
+        - Include specific names of neighborhoods, food spots, or landmarks with short tactical advice in brackets e.g. [Buy tickets online].
+
+        Provide exactly 3 flights, 3 hotels, and a {duration_days}-day itinerary. 
+        5. For ALL image_urls and booking_urls:
+            - Use high-quality Unsplash source URLs for imagery.
+            - Ensure `booking_url` points to the most logical official portal.
         """
         
         response = await llm.ainvoke([
@@ -116,19 +148,39 @@ async def scout_travel_plans(
         
     except Exception as e:
         print(f"LLM Parsing Error: {e}")
-        # Fallback Mock Data
+        # Fallback Mock Data with URLs
         data = {
-            "best_season": "Spring and Autumn offer the most moderate weather and clear skies.",
-            "upcoming_festivals": ["Local Cultural Festival (Next Month)", "Seasonal Celebration"],
+            "origin": origin,
+            "destination": destination,
+            "dates": dates,
+            "insights": {
+                "season": f"The period in {dates.split()[0]} is ideal for {destination}.",
+                "festivals": ["Local Art Festival", "Food Week"],
+                "route_logic": f"Optimized multi-stop routing entering via {destination}."
+            },
+            "hero_image": "https://images.unsplash.com/photo-1508804185872-d7badad00f7d?auto=format&fit=crop&w=1200",
             "flights": [
-                {"airline": "Global Airways", "price": "$750", "layovers": "Direct", "duration": "5H 30M"},
-                {"airline": "BudgetJet", "price": "$450", "layovers": "1 Stop", "duration": "8H 15M"}
+                {"airline": "Singapore Airlines", "price": "$316", "layovers": "Direct", "duration": "5H 30M", "booking_url": "https://www.singaporeair.com"},
+                {"airline": "Air China", "price": "$309", "layovers": "Direct", "duration": "6H 15M", "booking_url": "https://www.airchina.com"}
             ],
             "hotels": [
-                {"name": "Downtown Plaza Hotel", "price_per_night": "$120", "rating": "4 Stars", "area": "City Center"},
-                {"name": "Seaside Resort & Spa", "price_per_night": "$250", "rating": "5 Stars", "area": "Coastal District"}
+                {"name": "The Upper House", "price_per_night": "$450", "rating": "5 Stars", "area": "Central", "image_url": "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800", "booking_url": "https://www.booking.com"},
+                {"name": "Mandarin Oriental", "price_per_night": "$520", "rating": "5 Stars", "area": "Waterfront", "image_url": "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800", "booking_url": "https://www.mandarinoriental.com"}
             ],
-            "suggested_itinerary": [{"day": i+1, "title": f"Plan for Day {i+1}", "activities": ["Activity A", "Activity B"]} for i in range(duration_days)]
+            "itinerary": [
+                {
+                    "day": 1, 
+                    "title": "Shanghai Modernism & Tradition", 
+                    "image_url": "https://images.unsplash.com/photo-1517089535811-66af7d8001e7?auto=format&fit=crop&w=800", 
+                    "activities": [
+                        "Sunrise: Bund Riverside Walk (07:30 AM) - Best for empty photos.",
+                        "Morning: Yu Garden & Old City Exploration (09:30 AM).",
+                        "Lunch: Xiaolongbao Tasting at Nanxiang (12:30 PM).",
+                        "Afternoon: Shanghai Museum & People's Square (02:30 PM).",
+                        "Night: Oriental Pearl Tower Observatory & Dinner (07:00 PM)."
+                    ]
+                }
+            ]
         }
 
     # 4. Return UI Directive
@@ -139,6 +191,8 @@ async def scout_travel_plans(
             "view": "travel_planner",
             "data": {
                 "destination": destination,
+                "included_stops": included_stops,
+                "hero_image": data.get("hero_image_url", "/travel_hero.png"),
                 "origin": origin,
                 "dates": dates,
                 "duration_days": duration_days,
@@ -146,7 +200,8 @@ async def scout_travel_plans(
                 "interests": interests,
                 "insights": {
                     "season": data.get("best_season", ""),
-                    "festivals": data.get("upcoming_festivals", [])
+                    "festivals": data.get("upcoming_festivals", []),
+                    "route_logic": data.get("strategic_route_recommendation", "")
                 },
                 "flights": data.get("flights", []),
                 "hotels": data.get("hotels", []),
@@ -158,7 +213,7 @@ async def scout_travel_plans(
     return json.dumps(payload)
 
 @tool
-async def open_travel_planner_configurator(destination: str, duration_days: int = 3, trip_pace: str = "Balanced", interests: List[str] = []) -> str:
+async def open_travel_planner_configurator(destination: str, duration_days: int = 3, trip_pace: str = "Balanced", interests: List[str] = [], included_stops: List[str] = []) -> str:
     """
     Open the interactive travel planner to gather trip details (Days, Pace, Interests). 
     Use this when you need more details from the user before scouting.
@@ -172,7 +227,8 @@ async def open_travel_planner_configurator(destination: str, duration_days: int 
                 "prefill": {
                     "duration_days": duration_days,
                     "trip_pace": trip_pace,
-                    "interests": interests
+                    "interests": interests,
+                    "included_stops": included_stops
                 }
             }
         }
