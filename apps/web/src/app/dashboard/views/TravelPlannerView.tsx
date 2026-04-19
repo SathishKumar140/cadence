@@ -12,9 +12,13 @@ import { useDashboard } from '../DashboardContext';
 interface Flight {
   airline: string;
   price: string;
+  date?: string;
   layovers: string;
+  route?: string;
+  stop_details?: string;
   duration: string;
   booking_url?: string;
+  is_live_quote?: boolean;
 }
 
 interface Hotel {
@@ -24,6 +28,7 @@ interface Hotel {
   area: string;
   image_url?: string;
   booking_url?: string;
+  is_live_quote?: boolean;
 }
 
 interface ItineraryDay {
@@ -68,6 +73,13 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
     hotels = [],
     itinerary = []
   } = data || {};
+
+  // Auto-select Day 1 if itinerary changes
+  React.useEffect(() => {
+    if (itinerary.length > 0 && !itinerary.find(d => d.day === activeDay)) {
+      setActiveDay(itinerary[0].day);
+    }
+  }, [itinerary, activeDay]);
 
   // use dynamic asset from props or fallback
   const heroImage = data?.hero_image || "/travel_hero.png";
@@ -335,14 +347,21 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
                     <div className="w-14 h-14 bg-slate-50 border border-slate-200 flex items-center justify-center rotate-45 group-hover:rotate-90 transition-transform duration-500">
                       <Plane className="w-6 h-6 text-indigo-600 -rotate-45 group-hover:-rotate-90 transition-transform duration-500" />
                     </div>
-                    <div className="flex-1">
-                      <h4 className="font-black text-2xl text-slate-900 tracking-widest uppercase leading-none">{flight.airline}</h4>
-                      <div className="flex items-center gap-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-3">
-                        <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-indigo-500/50" /> {flight.duration}</span>
-                        <div className="w-1 h-1 rounded-full bg-slate-200" />
-                        <span className={flight.layovers.toLowerCase().includes('direct') ? 'text-indigo-600' : 'text-amber-600'}>{flight.layovers}</span>
-                      </div>
-                    </div>
+                     <div className="flex-1">
+                       <h4 className="font-black text-2xl text-slate-900 tracking-widest uppercase leading-none">{flight.airline}</h4>
+                       {flight.route && (
+                         <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1.5 flex items-center gap-2">
+                           {flight.route}
+                         </div>
+                       )}
+                       <div className="flex items-center gap-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-3">
+                         <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-indigo-500/50" /> {flight.duration}</span>
+                         <div className="w-1 h-1 rounded-full bg-slate-200" />
+                         <span className={flight.layovers.toLowerCase().includes('direct') ? 'text-indigo-600' : 'text-amber-600'}>
+                           {flight.layovers} {flight.stop_details && <span className="text-slate-400 ml-1">({flight.stop_details})</span>}
+                         </span>
+                       </div>
+                     </div>
                   </div>
 
                   {/* Technical Center Section (Dossier Link) */}
@@ -361,6 +380,17 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
                   {/* Right Section: Price & Portal */}
                   <div className="p-6 md:w-[220px] flex items-center justify-between gap-6 bg-slate-50/50">
                     <div className="text-right">
+                       <div className="flex flex-col items-end gap-1 mb-2">
+                          <div className="flex items-center gap-2 mb-1">
+                             {flight.is_live_quote && (
+                               <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 border border-emerald-100 rounded-full">
+                                  <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                                  <span className="text-[7px] font-black text-emerald-600 uppercase tracking-widest">Live Intel</span>
+                               </div>
+                             )}
+                          </div>
+                          {flight.date && <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest mb-1 italic">{flight.date}</span>}
+                       </div>
                        <span className="text-3xl font-black text-slate-900 block leading-none italic">{flight.price}</span>
                        <span className="text-[8px] uppercase tracking-[0.4em] font-black text-slate-400 mt-1 block">ECONOMY ELITE</span>
                     </div>
@@ -439,7 +469,14 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
                     <div className="flex flex-col gap-4 mt-8 pt-5 border-t border-slate-100">
                        <div className="flex items-center justify-between">
                          <div className="flex flex-col">
-                           <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Nightly Intel</span>
+                           <div className="flex items-center gap-2 mb-1.5">
+                              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Nightly Intel</span>
+                              {hotel.is_live_quote && (
+                                <span className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 border border-emerald-100 rounded text-[6px] font-black text-emerald-600 uppercase tracking-tight">
+                                   Live
+                                </span>
+                              )}
+                           </div>
                            <span className="text-3xl font-black text-slate-900 italic leading-none">{hotel.price_per_night}</span>
                          </div>
                          

@@ -1,6 +1,8 @@
 import json
 import os
 import uuid
+import asyncio
+from datetime import datetime
 from typing import Dict, Any, List
 from langchain_core.tools import tool
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -61,23 +63,25 @@ async def scout_travel_plans(
             # Parallelize searches to minimize socket termination risk
             async def get_insights():
                 q = f"festivals and events in {destination} during {dates} weather conditions"
-                return client.search(q, max_results=3)
+                return client.search(q, max_results=3, search_depth="basic")
             
             async def get_flights():
-                q = f"cheap flight prices deals from {origin} to {destination} {dates}"
-                return client.search(q, max_results=3)
+                # Dynamic Port Strategy: Search specifically for "Cheapest" and "Best" deals.
+                # If destination is "China", the search will naturally pick up Guangzhou (CAN) or Shanghai (PVG) based on price.
+                q = f"Skyscanner cheapest economy flight direct from {origin} to {destination} or major China hub on {dates} 2026"
+                return client.search(q, max_results=10, search_depth="advanced")
                 
             async def get_hotels():
-                q = f"{trip_pace} hotels recommendations in {destination} {dates} for {interests_str}"
-                return client.search(q, max_results=3)
+                q = f"Skyscanner best hotels in {destination} for {dates} with prices and ratings"
+                return client.search(q, max_results=6, search_depth="advanced")
 
             results = await asyncio.gather(get_insights(), get_flights(), get_hotels())
             
             res_insights, res_flights, res_hotels = results
             
-            insights_text = json.dumps([r['content'] for r in res_insights.get('results', [])])
-            flights_text = json.dumps([r['content'] for r in res_flights.get('results', [])])
-            hotels_text = json.dumps([r['content'] for r in res_hotels.get('results', [])])
+            insights_text = json.dumps([{"c": r['content'][:400], "u": r['url']} for r in res_insights.get('results', [])])
+            flights_text = json.dumps([{"c": r['content'][:400], "u": r['url']} for r in res_flights.get('results', [])])
+            hotels_text = json.dumps([{"c": r['content'][:400], "u": r['url']} for r in res_hotels.get('results', [])])
             
         except Exception as e:
             print(f"Tavily Search Error in Travel Planner: {e}")
@@ -88,61 +92,91 @@ async def scout_travel_plans(
         llm = get_model() # Uses default provider
         
         prompt = f"""
-        You are a JSON formatter for a travel agent. Analyze the following web search data and extract structured travel options.
+        You are a travel architect and IATA specialist. Analyze the search data and extract structured travel options.
         PERSONALIZATION PROFILE:
+        - Current Date: {datetime.now().strftime('%Y-%m-%d')}
         - Primary Destination: {destination}
-        - Included Stops/Cities: {stops_str}
+        - Included Stops: {stops_str}
         - Duration: {duration_days} days
-        - Travel window: {dates}
-        - Pace: {trip_pace}
-        - Interests: {interests_str}
+        - Window: {dates}
         
-        Web Insights Context: {insights_text}
-        Flights Context: {flights_text}
-        Hotels Context: {hotels_text}
+        Context (Content & Source URLs):
+        Flights: {flights_text}
+        Hotels: {hotels_text}
         
-        Return ONLY a JSON object with this exact structure:
+        IATA & ENTITY DISCOVERY:
+        - Identify IATA codes (e.g., CCU, PVG, SIN).
+        - SKYSCANNER ENTITY IDs (CRITICAL):
+            - Beijing: 45695035
+            - Shanghai: 27536640
+            - Guangzhou: 27546680
+            - Hong Kong: 27536665
+            - For others: Extract the numeric 'entity_id' from Skyscanner URLs found in the 'Hotels' context.
+        - DATE RESOLUTION: Resolve the user's travel window ({dates}) into precise formats.
+          Check-in (YYMMDD): {dates} 2026.
+          Check-out (YYMMDD): Check-in + {duration_days} days.
+          Also provide YYYY-MM-DD format for hotel links.
+        
+        Return ONLY a JSON object:
         {{
-            "best_season": "Short description of the best time to visit and weather",
-            "upcoming_festivals": ["Festival 1 (Month)", "Festival 2 (Month)"],
-            "hero_image_url": "A high-quality Unsplash image URL for the destination (e.g., https://images.unsplash.com/photo-XXX?auto=format&fit=crop&w=1200&q=80)",
-            "strategic_route_recommendation": "A brief explanation of why this city sequence was chosen for maximum efficiency (e.g., 'Entering via Shenzhen and exiting via Beijing saves 4 hours of domestic travel from Singapore')",
+            "best_season": "...",
+            "upcoming_festivals": ["Festival (Month)"],
+            "hero_image_url": "...",
+            "strategic_route_recommendation": "...",
             "flights": [
-                {{"airline": "Airline Name", "price": "$X", "layovers": "Direct / 1 Stop", "duration": "XH YM", "booking_url": "Official portal URL"}}
+                {{
+                    "airline": "Airline Name", 
+                    "price": "£X", 
+                    "date": "Friday, May 15, 2026",
+                    "layovers": "1 Stop", 
+                    "route": "CCU ➔ CAN",
+                    "stop_details": "via DAC",
+                    "duration": "XH YM",
+                    "booking_url": "https://www.skyscanner.net/transport/flights/[ORIG_IATA]/[DEST_IATA]/260515/?adults=1&cabinclass=economy",
+                    "is_live_quote": true
+                }}
             ],
             "hotels": [
-                {{"name": "Hotel Name", "price_per_night": "$Y", "rating": "4.5 Stars", "area": "Neighborhood", "image_url": "Unsplash hotel image URL", "booking_url": "Official portal URL"}}
+                {{
+                    "name": "Hotel Name", 
+                    "price_per_night": "$Y", 
+                    "rating": "4.5 Stars", 
+                    "area": "Neighborhood", 
+                    "image_url": "...",
+                    "booking_url": "DEEP_LINK",
+                    "is_live_quote": true
+                }}
             ],
             "suggested_itinerary": [
-                {{"day": 1, "title": "Day Title", "image_url": "Unsplash image URL", "activities": [
-                    "Breakfast: Local specialty at... (08:30 AM)",
-                    "Morning: Visiting X Landmark (10:00 AM) - [Tactical Tip: Arrive early to avoid crowds]",
-                    "Lunch: Hidden gem recommendation... (12:30 PM)",
-                    "Afternoon: Exploring Y District (02:30 PM)",
-                    "Evening: Dinner & Z View (07:00 PM)"
-                ]}},
-                ... (provide {duration_days} days total)
+                {{
+                    "day": 1, 
+                    "title": "Welcome to [City]", 
+                    "image_url": "...", 
+                    "activities": ["Morning: ...", "Lunch: ...", "Afternoon: ...", "Evening: ..."]
+                }}
             ]
         }}
         
-        GEOGRAPHICAL STRATEGY (CRITICAL):
-        1. Analyze the distance from {origin} to each stop ({destination}, {stops_str}).
-        2. Sequence the itinerary to minimize total travel distance and "zigzagging".
-        3. Optimize for Open-Jaw paths: If entering via one city and exiting via another is more efficient given {origin}, suggest that path in `strategic_route_recommendation` and the itinerary structure.
+        LIVE PRICE EXTRACTION (CRITICAL):
+        - You MUST extract the actual, real-time prices found in the context.
+        - CHEAPEST FIRST: Prioritize results labeled "Best", "Cheapest", or "Lowest". DO NOT use higher prices if a lower one (e.g., £113) is present in the snippets for the same route.
+        - DATE MATCHING: Ensure the pricing corresponds to the exact date: {dates}, 2026.
+        - CURRENCY INTEGRITY: Use the currency from the snippet (e.g., £, €, ₹). DO NOT convert to $ unless clearly instructed by the context.
+        - Set `is_live_quote` to true only if you found a specific price in the context.
         
-        TEMPORAL RELEVANCE (CRITICAL):
-        - If `{dates}` is not "Upcoming", you MUST prioritize festivals and events occurring during that specific window. 
-        - Tailor the `best_season` description to evaluate the suitability of the `{dates}` window specifically for this trip.
+        BOOKING_URL LOGIC (CRITICAL):
+        1. FOR FLIGHTS: Construct a Skyscanner Deep Link using the precise path format.
+           Pattern: `https://www.skyscanner.net/transport/flights/[ORIGIN_IATA]/[DEST_IATA]/[YYMMDD]/?adults=1&cabinclass=economy`
+        2. FOR HOTELS: Construct the Verified Skyscanner Hotel Search Link.
+           Pattern: `https://www.skyscanner.com.sg/hotels/search?entity_id=[ENTITY_ID]&checkin=[YYYY-MM-DD]&checkout=[YYYY-MM-DD]&adults=1&rooms=1`
+           (Example Beijing -> `https://www.skyscanner.com.sg/hotels/search?entity_id=45695035&checkin=2026-05-15&checkout=2026-05-25&adults=1&rooms=1`)
         
-        ITINERARY DENSITY (CRITICAL):
-        - Each day MUST have at least 4-5 distinct activities covering Morning, Lunch, Afternoon, and Evening/Dinner. 
-        - DO NOT provide sparse 1-2 item lists. 
-        - Include specific names of neighborhoods, food spots, or landmarks with short tactical advice in brackets e.g. [Buy tickets online].
+        GEOGRAPHICAL & TEMPORAL STRATEGY:
+        - Sequence the itinerary to minimize travel distance.
+        - Tailor activities to the specific `{dates}` window.
+        - Each day MUST have Morning, Lunch, Afternoon, and Evening activities.
 
-        Provide exactly 3 flights, 3 hotels, and a {duration_days}-day itinerary. 
-        5. For ALL image_urls and booking_urls:
-            - Use high-quality Unsplash source URLs for imagery.
-            - Ensure `booking_url` points to the most logical official portal.
+        Provide exactly 3 flights, 3 hotels, and a {duration_days}-day itinerary.
         """
         
         response = await llm.ainvoke([
