@@ -52,7 +52,7 @@ interface TravelPlannerViewProps {
 }
 
 export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
-  const { applyMutation } = useDashboard();
+  const { applyMutation, setActiveView } = useDashboard();
   const [selectedFlight, setSelectedFlight] = useState<number | null>(null);
   const [selectedHotel, setSelectedHotel] = useState<number | null>(null);
   const [activeDay, setActiveDay] = useState<number>(1);
@@ -131,52 +131,57 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
   };
 
   return (
-    <div className="w-full h-full bg-[var(--background)] relative min-h-screen pb-24 overflow-x-hidden">
-      {/* 1. Cinematic Hero Section (Compacted) */}
-      <section className="relative w-full h-[180px] md:h-[220px] overflow-hidden">
+    <div className="w-full h-full bg-slate-50 relative min-h-screen pb-24 overflow-x-hidden selection:bg-indigo-500/30 font-sans">
+      {/* 0. Global Tactical Overlays */}
+      <div className="fixed inset-0 pointer-events-none z-[100] opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
+      
+      {/* 1. Cinematic Hero Section (Intelligence Briefing Style) */}
+      <section className="relative w-full h-[220px] md:h-[300px] overflow-hidden bg-white">
         <motion.img 
-          initial={{ scale: 1.1 }}
-          animate={{ scale: 1 }}
+          initial={{ scale: 1.1, filter: 'grayscale(0.5) brightness(0.8)' }}
+          animate={{ scale: 1, filter: 'grayscale(0) brightness(1)' }}
           transition={{ duration: 10, ease: "linear" }}
           src={heroImage} 
           className="w-full h-full object-cover"
           alt={destination}
         />
-        {/* Stronger overlay for clarity */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/70 to-black/40" />
+        {/* Elite gradient overlay - Light Dossier Style */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-50 via-transparent to-white/10" />
+        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/40 to-transparent" />
         
-        <div className="absolute bottom-6 left-6 md:left-10 z-20 space-y-2">
+        <div className="absolute bottom-6 md:bottom-10 left-6 md:left-12 z-20 space-y-5">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-full w-fit shadow-lg shadow-black/20"
+            className="flex items-center gap-3 bg-indigo-500/10 backdrop-blur-xl border border-indigo-500/20 px-3 py-1.5 rounded-sm w-fit"
           >
-            <Sparkles className="w-3 h-3 text-cyan-400" />
-            <span className="text-[9px] font-black text-white uppercase tracking-[0.2em]">Travel Dossier</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse shadow-[0_0_8px_rgba(79,70,229,0.8)]" />
+            <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em]">Intelligence Briefing</span>
           </motion.div>
           
-          <div className="space-y-0">
-             <h1 className="text-4xl md:text-5xl font-black text-white italic tracking-tighter uppercase leading-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]">
+          <div className="space-y-1">
+             <h1 className="text-5xl md:text-8xl font-black text-slate-900 italic tracking-tighter uppercase leading-[0.85] drop-shadow-sm">
                {destination}
              </h1>
+             <div className="h-1 w-24 bg-indigo-500/50 mt-6 rounded-full" />
              {data.included_stops && data.included_stops.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="flex flex-wrap gap-2 mt-4">
                   {data.included_stops.map(stop => (
-                    <span key={stop} className="px-2 py-0.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded text-[8px] font-black text-white/70 uppercase tracking-widest leading-none">
+                    <span key={stop} className="px-2 py-0.5 bg-white/80 backdrop-blur-sm border border-slate-200 rounded text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">
                       Incl. {stop}
                     </span>
                   ))}
                 </div>
              )}
-              <div className="flex flex-wrap items-center gap-3 text-white/90 font-bold uppercase tracking-[0.15em] text-[10px] mt-2">
-                <span className="flex items-center gap-1.5 bg-black/60 shadow-lg shadow-black/20 px-2 py-0.5 rounded backdrop-blur-sm">
-                  <MapPin className="w-3 h-3 text-cyan-400" />
+              <div className="flex flex-wrap items-center gap-3 text-slate-700 font-bold uppercase tracking-[0.15em] text-[10px] mt-4">
+                <span className="flex items-center gap-1.5 bg-white shadow-xl shadow-black/5 px-3 py-1 rounded-md border border-slate-100">
+                  <MapPin className="w-3 h-3 text-indigo-600" />
                   From {origin}
                 </span>
                 {insights.route_logic && (
                   <>
-                    <div className="w-1 h-1 rounded-full bg-white/40" />
-                    <span className="flex items-center gap-2 bg-indigo-600 shadow-xl shadow-indigo-600/30 px-3 py-1 rounded-md text-white animate-in slide-in-from-left duration-500">
+                    <div className="w-1 h-1 rounded-full bg-slate-300" />
+                    <span className="flex items-center gap-2 bg-indigo-600 shadow-xl shadow-indigo-600/10 px-4 py-1.5 rounded-lg text-white animate-in slide-in-from-left duration-700">
                       <Zap className="w-3 h-3" />
                       Strategic Route: {insights.route_logic}
                     </span>
@@ -192,33 +197,33 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
         {/* 2. Tactical Insights Row */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <motion.div 
-            whileHover={{ y: -5 }}
-            className="lg:col-span-1 bg-[var(--card-bg)] border border-[var(--card-border)] p-8 rounded-3xl relative overflow-hidden group"
+            whileHover={{ y: -5, borderColor: 'rgba(245,158,11,0.3)' }}
+            className="lg:col-span-1 bg-white backdrop-blur-md border border-slate-200 p-8 rounded-xl relative overflow-hidden group transition-all shadow-sm"
           >
             <Sun className="absolute -right-6 -top-6 w-32 h-32 text-amber-500/5 group-hover:text-amber-500/10 transition-colors" />
-            <h3 className="flex items-center gap-2 text-sm font-black text-amber-500 uppercase tracking-widest mb-4">
+            <h3 className="flex items-center gap-3 text-[10px] font-black text-amber-600 uppercase tracking-[0.2em] mb-4">
                <Sun className="w-4 h-4" />
-               Best Season
+               Climatology
             </h3>
-            <p className="text-sm font-medium text-[var(--muted-text)] leading-relaxed">
+            <p className="text-sm font-bold text-slate-600 leading-relaxed italic border-l-2 border-amber-500/30 pl-4">
               {insights.season}
             </p>
           </motion.div>
 
           <motion.div 
-            whileHover={{ y: -5 }}
-            className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--card-border)] p-8 rounded-3xl relative overflow-hidden group"
+            whileHover={{ y: -5, borderColor: 'rgba(129,140,248,0.3)' }}
+            className="lg:col-span-2 bg-white backdrop-blur-md border border-slate-200 p-8 rounded-xl relative overflow-hidden group transition-all shadow-sm"
           >
-            <Palmtree className="absolute -right-6 -top-6 w-32 h-32 text-fuchsia-500/5 group-hover:text-fuchsia-500/10 transition-colors" />
-            <h3 className="flex items-center gap-2 text-sm font-black text-fuchsia-500 uppercase tracking-widest mb-6">
+            <Palmtree className="absolute -right-6 -top-6 w-32 h-32 text-indigo-500/5 group-hover:text-indigo-500/10 transition-colors" />
+            <h3 className="flex items-center gap-3 text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-6">
                <Palmtree className="w-4 h-4" />
-               Local Events
+               Regional Events
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {insights.festivals?.map((fest, idx) => (
-                <div key={idx} className="flex items-center gap-3 bg-[var(--card-border)]/20 p-4 rounded-2xl border border-[var(--card-border)]">
-                   <div className="w-2 h-2 rounded-full bg-fuchsia-500 shadow-[0_0_10px_rgba(217,70,239,0.5)]" />
-                   <span className="text-xs font-black text-[var(--header-text)] uppercase">{fest}</span>
+                <div key={idx} className="flex items-center gap-3 bg-slate-50 p-4 rounded-lg border border-slate-100 hover:bg-slate-100 transition-colors">
+                   <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]" />
+                   <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">{fest}</span>
                 </div>
               ))}
             </div>
@@ -229,7 +234,7 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
         {itinerary.length > 0 && (
           <section className="space-y-6">
              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-black text-[var(--header-text)] italic tracking-tight uppercase flex items-center gap-3">
+                <h2 className="text-2xl font-black text-slate-900 italic tracking-tight uppercase flex items-center gap-3">
                   <Map className="w-6 h-6 text-indigo-500" />
                   Trip Itinerary
                 </h2>
@@ -238,10 +243,10 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
                      <button 
                        key={day.day}
                        onClick={() => setActiveDay(day.day)}
-                       className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                       className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
                          activeDay === day.day 
-                          ? 'bg-indigo-600 text-white shadow-lg' 
-                          : 'bg-[var(--card-bg)] border border-[var(--card-border)] text-slate-400'
+                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30' 
+                          : 'bg-white border-slate-200 text-slate-400 hover:border-slate-400'
                        }`}
                      >
                        Day {day.day}
@@ -256,14 +261,14 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
                  initial={{ opacity: 0, scale: 0.98 }}
                  animate={{ opacity: 1, scale: 1 }}
                  exit={{ opacity: 0, scale: 1.02 }}
-                 className="bg-indigo-600/5 border border-indigo-600/20 rounded-3xl p-8"
+                 className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm"
                >
                   {itinerary.find(d => d.day === activeDay) && (
                     <div className="space-y-6">
                        <div className="flex flex-col md:flex-row gap-6">
                           {/* Daily Highlight Image */}
                           {itinerary.find(d => d.day === activeDay)?.image_url && (
-                            <div className="w-full md:w-1/3 h-[200px] rounded-2xl overflow-hidden shadow-lg border border-white/10 shrink-0">
+                            <div className="w-full md:w-1/3 h-[200px] rounded-2xl overflow-hidden shadow-lg border border-slate-100 shrink-0">
                                <img 
                                  src={itinerary.find(d => d.day === activeDay)?.image_url} 
                                  className="w-full h-full object-cover" 
@@ -277,17 +282,17 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
                                <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white text-xl font-black shadow-lg shadow-indigo-600/20">
                                  0{activeDay}
                                </div>
-                               <div>
-                                  <h4 className="text-xl font-black text-indigo-600 uppercase tracking-tight">{itinerary.find(d => d.day === activeDay)?.title}</h4>
-                                  <p className="text-[10px] font-bold text-slate-400 tracking-[0.2em] uppercase mt-1">Daily Highlights</p>
-                               </div>
+                                <div>
+                                   <h4 className="text-xl font-black text-indigo-600 uppercase tracking-tight">{itinerary.find(d => d.day === activeDay)?.title}</h4>
+                                   <p className="text-[10px] font-bold text-slate-400 tracking-[0.2em] uppercase mt-1">Daily Highlights</p>
+                                </div>
                             </div>
                             
                             <div className="grid grid-cols-1 gap-3">
                                {itinerary.find(d => d.day === activeDay)?.activities.map((act, i) => (
-                                 <div key={i} className="flex items-center gap-4 bg-[var(--background)] p-4 rounded-2xl border border-[var(--card-border)] group hover:border-indigo-500/30 transition-colors shadow-sm">
+                               <div key={i} className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 group hover:border-indigo-500/30 transition-colors">
                                     <Clock className="w-4 h-4 text-indigo-500 opacity-40 shrink-0" />
-                                    <span className="text-sm font-bold text-[var(--header-text)]">{act}</span>
+                                    <span className="text-sm font-bold text-slate-700">{act}</span>
                                  </div>
                                ))}
                             </div>
@@ -300,51 +305,64 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
           </section>
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+        <div className="flex flex-col gap-16">
           {/* 4. Flight Intel */}
           <section className="space-y-8">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-black text-[var(--header-text)] italic tracking-tight uppercase flex items-center gap-3">
-                 <Plane className="w-6 h-6 text-cyan-500" />
+              <h2 className="text-2xl font-black text-slate-900 italic tracking-tight uppercase flex items-center gap-3">
+                 <Plane className="w-6 h-6 text-indigo-600" />
                  Flight Options
               </h2>
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Select to Sync</span>
             </div>
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4">
               {flights.map((flight, idx) => (
                 <motion.div 
                   key={idx}
                   onClick={() => setSelectedFlight(selectedFlight === idx ? null : idx)}
-                  whileHover={{ x: 8 }}
-                  className={`relative group cursor-pointer border transition-all rounded-[1.5rem] overflow-hidden flex flex-col md:flex-row items-center gap-0 ${
+                  whileHover={{ x: 4 }}
+                  className={`relative group cursor-pointer border transition-all rounded-sm overflow-hidden flex flex-col md:flex-row items-stretch ${
                     selectedFlight === idx 
-                      ? 'border-cyan-500 bg-cyan-500/[0.03] shadow-2xl shadow-cyan-500/10' 
-                      : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800'
+                      ? 'border-indigo-600 bg-indigo-50 shadow-[0_0_30px_rgba(79,70,229,0.1)]' 
+                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                   }`}
                 >
+                  {/* Visual Accent */}
+                  <div className={`w-1 shrink-0 ${selectedFlight === idx ? 'bg-indigo-600' : 'bg-slate-200'}`} />
+
                   {/* Left Section: Airline Info */}
-                  <div className="p-6 flex items-center gap-6 flex-1 min-w-[280px]">
-                    <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-zinc-800 flex items-center justify-center border border-slate-100 dark:border-zinc-700 shadow-inner group-hover:scale-110 transition-transform">
-                      <Plane className="w-8 h-8 text-cyan-500" />
+                  <div className="p-6 flex items-center gap-8 flex-1">
+                    <div className="w-14 h-14 bg-slate-50 border border-slate-200 flex items-center justify-center rotate-45 group-hover:rotate-90 transition-transform duration-500">
+                      <Plane className="w-6 h-6 text-indigo-600 -rotate-45 group-hover:-rotate-90 transition-transform duration-500" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-black text-2xl text-slate-800 dark:text-slate-100 tracking-tighter uppercase leading-none">{flight.airline}</h4>
-                      <div className="flex items-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mt-3">
-                        <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-cyan-500/60" /> {flight.duration}</span>
-                        <div className="w-1 h-1 rounded-full bg-slate-300 dark:bg-zinc-700" />
-                        <span className={flight.layovers.toLowerCase().includes('direct') ? 'text-emerald-500' : 'text-amber-500'}>{flight.layovers}</span>
+                      <h4 className="font-black text-2xl text-slate-900 tracking-widest uppercase leading-none">{flight.airline}</h4>
+                      <div className="flex items-center gap-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-3">
+                        <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-indigo-500/50" /> {flight.duration}</span>
+                        <div className="w-1 h-1 rounded-full bg-slate-200" />
+                        <span className={flight.layovers.toLowerCase().includes('direct') ? 'text-indigo-600' : 'text-amber-600'}>{flight.layovers}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Divider (Dashed for Ticket Feel) */}
-                  <div className="hidden md:block w-[1px] h-20 border-l-2 border-dashed border-slate-200 dark:border-zinc-800 self-center opacity-50" />
+                  {/* Technical Center Section (Dossier Link) */}
+                  <div className="hidden lg:flex items-center px-10 border-x border-slate-100">
+                     <div className="w-24 h-[1px] bg-slate-200 relative">
+                        <div className="absolute top-1/2 left-0 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-300" />
+                        <div className="absolute top-1/2 right-0 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-300" />
+                        <motion.div 
+                          animate={{ x: [0, 96, 0] }}
+                          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                          className="absolute top-1/2 left-0 -translate-y-1/2 w-1 h-1 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.4)]" 
+                        />
+                     </div>
+                  </div>
 
-                  {/* Right Section: Price & Actions */}
-                  <div className="p-6 md:w-[240px] flex md:flex-col items-center justify-between gap-4 bg-slate-50/50 dark:bg-zinc-800/20">
+                  {/* Right Section: Price & Portal */}
+                  <div className="p-6 md:w-[220px] flex items-center justify-between gap-6 bg-slate-50/50">
                     <div className="text-right">
-                       <span className="text-3xl font-black text-cyan-600 block leading-none">{flight.price}</span>
-                       <span className="text-[9px] uppercase tracking-widest font-black text-slate-400 opacity-60">P.P / Seat</span>
+                       <span className="text-3xl font-black text-slate-900 block leading-none italic">{flight.price}</span>
+                       <span className="text-[8px] uppercase tracking-[0.4em] font-black text-slate-400 mt-1 block">ECONOMY ELITE</span>
                     </div>
                     
                     <div className="flex items-center gap-2">
@@ -354,16 +372,11 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
                            target="_blank" 
                            rel="noopener noreferrer"
                            onClick={(e) => e.stopPropagation()}
-                           className="p-2.5 rounded-xl bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-400 hover:text-cyan-500 hover:border-cyan-500/30 transition-all shadow-sm"
+                           className="p-3 bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-500/40 transition-all rounded-lg shadow-sm"
                          >
                            <ExternalLink className="w-4 h-4" />
                          </a>
                        )}
-                       <div className={`p-2.5 rounded-xl border transition-all ${
-                          selectedFlight === idx ? 'bg-cyan-600 text-white border-cyan-700' : 'bg-slate-100 dark:bg-zinc-700 text-slate-400 border-transparent'
-                       }`}>
-                          <CheckCircle className="w-4 h-4" />
-                       </div>
                     </div>
                   </div>
                 </motion.div>
@@ -374,76 +387,75 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
           {/* 5. Hotel Intel */}
           <section className="space-y-8">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-black text-[var(--header-text)] italic tracking-tight uppercase flex items-center gap-3">
-                 <Building className="w-6 h-6 text-indigo-500" />
+              <h2 className="text-2xl font-black text-slate-900 italic tracking-tight uppercase flex items-center gap-3">
+                 <Building className="w-6 h-6 text-indigo-600" />
                  Hotel Recommendations
               </h2>
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Live Quotes</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {hotels.map((hotel, idx) => (
                 <motion.div 
                   key={idx}
                   onClick={() => setSelectedHotel(selectedHotel === idx ? null : idx)}
                   whileHover={{ y: -8 }}
-                  className={`relative group cursor-pointer border transition-all rounded-[2rem] overflow-hidden flex flex-col ${
+                  className={`relative group cursor-pointer transition-all rounded-xl overflow-hidden flex flex-col ${
                     selectedHotel === idx 
-                      ? 'border-indigo-500 bg-indigo-500/[0.03] shadow-2xl shadow-indigo-500/10' 
-                      : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800'
+                      ? 'ring-2 ring-indigo-600 bg-indigo-50 border-transparent shadow-xl' 
+                      : 'bg-white border border-slate-200 hover:border-slate-300 shadow-sm'
                   }`}
                 >
                   {/* Hotel Image Hub */}
-                  <div className="relative h-[200px] w-full overflow-hidden">
+                  <div className="relative h-[220px] w-full overflow-hidden">
                     <img 
                       src={hotel.image_url || `https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80`} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 grayscale-[0.2] group-hover:grayscale-0"
                       alt={hotel.name}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    {/* Elite scanline on image */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent opacity-95" />
+                    <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors" />
                     
-                    <div className="absolute top-4 right-4 flex gap-2">
-                       <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-xl border border-white/20">
-                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                          <span className="text-[10px] font-black text-slate-800 dark:text-slate-100 uppercase">{hotel.rating}</span>
+                    <div className="absolute top-4 right-4">
+                       <div className="bg-white/80 backdrop-blur-xl px-3 py-1.5 rounded-sm flex items-center gap-2 border border-slate-200">
+                          <Sparkles className="w-3 h-3 text-amber-500" />
+                          <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{hotel.rating}</span>
                        </div>
                     </div>
 
-                    <div className="absolute bottom-4 left-4 right-4">
-                       <h4 className="font-black text-white text-xl uppercase tracking-tighter leading-tight drop-shadow-md">{hotel.name}</h4>
+                    <div className="absolute bottom-4 left-5 right-5">
+                       <h4 className="font-black text-slate-900 text-2xl uppercase tracking-tighter leading-tight italic">{hotel.name}</h4>
                     </div>
                   </div>
 
                   <div className="p-6 flex flex-col justify-between flex-1">
                     <div className="space-y-4">
-                       <div className="flex items-center gap-2 text-[10px] font-black text-indigo-500/60 uppercase tracking-[0.2em]">
-                          <MapPin className="w-3.5 h-3.5" />
+                       <div className="flex items-center gap-2 text-[9px] font-black text-indigo-600 uppercase tracking-[0.3em] opacity-80">
+                          <MapPin className="w-3 h-3" />
                           {hotel.area}
                        </div>
                     </div>
                     
-                    <div className="flex items-end justify-between border-t border-slate-100 dark:border-zinc-800/50 pt-5 mt-6">
-                       <div className="flex flex-col">
-                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 opacity-60">Nightly Executive Rate</span>
-                         <span className="text-3xl font-black text-slate-800 dark:text-slate-100 italic leading-none">{hotel.price_per_night}</span>
-                       </div>
-                       
-                       <div className="flex items-center gap-2">
-                          {hotel.booking_url && (
-                             <a 
-                               href={hotel.booking_url} 
-                               target="_blank" 
-                               rel="noopener noreferrer"
-                               onClick={(e) => e.stopPropagation()}
-                               className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-white border border-indigo-700 hover:border-indigo-500/20 text-white hover:text-indigo-600 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20 hover:shadow-none"
-                             >
-                               Source
-                             </a>
-                          )}
-                          <div className={`p-2.5 rounded-xl border transition-all ${
-                             selectedHotel === idx ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-slate-100 dark:bg-zinc-800 text-slate-400 border-transparent'
-                          }`}>
-                             <CheckCircle className="w-4 h-4" />
-                          </div>
+                    <div className="flex flex-col gap-4 mt-8 pt-5 border-t border-slate-100">
+                       <div className="flex items-center justify-between">
+                         <div className="flex flex-col">
+                           <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Nightly Intel</span>
+                           <span className="text-3xl font-black text-slate-900 italic leading-none">{hotel.price_per_night}</span>
+                         </div>
+                         
+                         <div className="flex items-center gap-2">
+                            {hotel.booking_url && (
+                               <a 
+                                 href={hotel.booking_url} 
+                                 target="_blank" 
+                                 rel="noopener noreferrer"
+                                 onClick={(e) => e.stopPropagation()}
+                                 className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest transition-all rounded-sm shadow-xl shadow-indigo-600/10"
+                               >
+                                 Access
+                               </a>
+                            )}
+                         </div>
                        </div>
                     </div>
                   </div>
@@ -464,19 +476,19 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
             exit={{ y: 100, opacity: 0 }}
             className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] w-full max-w-2xl px-4"
           >
-            <div className="bg-slate-900 border border-white/10 rounded-2xl p-4 flex items-center justify-between shadow-2xl backdrop-blur-xl">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-2xl backdrop-blur-xl">
               <div className="flex items-center gap-6 px-4">
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-1">Selections</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Selections</span>
                   <div className="flex items-center gap-3">
-                    {selectedFlight !== null && <Plane className="w-5 h-5 text-cyan-400" />}
-                    {selectedHotel !== null && <Building className="w-5 h-5 text-indigo-400" />}
+                    <Plane className={`w-5 h-5 ${selectedFlight !== null ? 'text-indigo-600' : 'text-slate-200'}`} />
+                    <Building className={`w-5 h-5 ${selectedHotel !== null ? 'text-indigo-600' : 'text-slate-200'}`} />
                   </div>
                 </div>
-                <div className="h-10 w-[1px] bg-white/10" />
+                <div className="h-10 w-[1px] bg-slate-200" />
                 <div className="hidden sm:flex flex-col">
-                  <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-1">Status</span>
-                  <span className="text-xs font-black text-emerald-400 uppercase">Ready to Sync</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Status</span>
+                  <span className="text-xs font-black text-emerald-600 uppercase">Ready to Sync</span>
                 </div>
               </div>
 
@@ -485,8 +497,8 @@ export default function TravelPlannerView({ data }: TravelPlannerViewProps) {
                 disabled={isSyncing || syncSuccess}
                 className={`flex items-center gap-3 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
                   syncSuccess 
-                    ? 'bg-emerald-500 text-white' 
-                    : 'bg-white text-black hover:bg-emerald-400 disabled:opacity-50'
+                    ? 'bg-emerald-600 text-white' 
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 shadow-lg shadow-indigo-600/20'
                 }`}
               >
                 {isSyncing ? (

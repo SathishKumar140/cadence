@@ -55,20 +55,28 @@ async def scout_travel_plans(
     
     if tavily_key and "placeholder" not in tavily_key:
         try:
+            import asyncio
             client = TavilyClient(api_key=tavily_key)
             
-            # Context 1: Destination insights (seasons, festivals) calibrated to dates
-            insight_query = f"festivals and events in {destination} during {dates} weather conditions"
-            res_insights = client.search(insight_query, max_results=3)
+            # Parallelize searches to minimize socket termination risk
+            async def get_insights():
+                q = f"festivals and events in {destination} during {dates} weather conditions"
+                return client.search(q, max_results=3)
+            
+            async def get_flights():
+                q = f"cheap flight prices deals from {origin} to {destination} {dates}"
+                return client.search(q, max_results=3)
+                
+            async def get_hotels():
+                q = f"{trip_pace} hotels recommendations in {destination} {dates} for {interests_str}"
+                return client.search(q, max_results=3)
+
+            results = await asyncio.gather(get_insights(), get_flights(), get_hotels())
+            
+            res_insights, res_flights, res_hotels = results
+            
             insights_text = json.dumps([r['content'] for r in res_insights.get('results', [])])
-            
-            # Context 2: Flights
-            res_flights = client.search(f"cheap flight prices deals from {origin} to {destination} {dates}", max_results=3)
             flights_text = json.dumps([r['content'] for r in res_flights.get('results', [])])
-            
-            # Context 3: Hotels
-            search_hotel_query = f"{trip_pace} hotels recommendations in {destination} {dates} for {interests_str}"
-            res_hotels = client.search(search_hotel_query, max_results=3)
             hotels_text = json.dumps([r['content'] for r in res_hotels.get('results', [])])
             
         except Exception as e:

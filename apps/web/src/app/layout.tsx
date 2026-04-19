@@ -23,7 +23,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const theme = cookies().get("theme")?.value || "dark";
+  const theme = "dark"; // Forced for Tactical Noir experience
 
   return (
     <html lang="en" className={theme}>
